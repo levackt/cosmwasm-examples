@@ -2,10 +2,11 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::convert::TryInto;
 
+use crate::state::{config, config_read, State};
 use crate::msg::{AllowanceResponse, BalanceResponse, HandleMsg, InitMsg, QueryMsg};
 use cosmwasm_std::{
     generic_err, log, to_binary, to_vec, Api, Binary, CanonicalAddr, Env, Extern, HandleResponse,
-    HumanAddr, InitResponse, Querier, ReadonlyStorage, StdResult, Storage,
+    HumanAddr, InitResponse, Querier, ReadonlyStorage, StdResult, Storage, HandleResult
 };
 use cosmwasm_storage::{PrefixedStorage, ReadonlyPrefixedStorage};
 
@@ -63,7 +64,12 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     })?;
     config_store.set(KEY_CONSTANTS, &constants)?;
     config_store.set(KEY_TOTAL_SUPPLY, &total_supply.to_be_bytes())?;
-
+    
+    let state = State {
+        minter: _env.message.sender.clone(),
+    };
+    config(&mut deps.storage).save(&state)?;
+    
     Ok(InitResponse::default())
 }
 
@@ -72,6 +78,8 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     env: Env,
     msg: HandleMsg,
 ) -> StdResult<HandleResponse> {
+    let state = config_read(&deps.storage).load()?;
+
     match msg {
         HandleMsg::Approve { spender, amount } => try_approve(deps, env, &spender, &amount),
         HandleMsg::Transfer { recipient, amount } => try_transfer(deps, env, &recipient, &amount),
@@ -81,6 +89,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             amount,
         } => try_transfer_from(deps, env, &owner, &recipient, &amount),
         HandleMsg::Burn { amount } => try_burn(deps, env, &amount),
+        HandleMsg::Mint { recipient, amount } => try_mint(deps, env, state, &recipient, &amount),
     }
 }
 
@@ -264,6 +273,63 @@ fn try_burn<S: Storage, A: Api, Q: Querier>(
             log(
                 "account",
                 deps.api.human_address(&env.message.sender)?.as_str(),
+            ),
+            log("amount", amount),
+        ],
+        data: None,
+    };
+
+    Ok(res)
+}
+
+
+/// Mint tokens
+///
+/// Add `amount` tokens to the recipient account, signer must be owner
+///
+/// @param amount the amount of money to mint
+fn try_mint<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+    state: State,
+    recipient: &HumanAddr,
+    amount: &str,
+) -> HandleResult {
+    let amount_raw = parse_u128(amount)?;
+    let recipient_raw = deps.api.canonical_address(recipient)?;
+
+    let mut account_balance = read_balance(&deps.storage, &recipient_raw)?;
+
+    account_balance += amount_raw;
+
+    let mut balances_store = PrefixedStorage::new(PREFIX_BALANCES, &mut deps.storage);
+
+    balances_store.set(recipient_raw.as_slice(), &account_balance.to_be_bytes())?;
+
+    let mut config_store = PrefixedStorage::new(PREFIX_CONFIG, &mut deps.storage);
+    
+    if env.message.sender != state.minter {
+        panic!("not authorized minter")
+        // Err(unauthorized());
+        // todo ^^^ cannot infer type for type parameter `T` declared on the enum `Result`
+    }
+
+    let supply_data = config_store
+        .get(KEY_TOTAL_SUPPLY)
+        .expect("could not read total supply")
+        .expect("no total supply data stored");
+    let mut total_supply = bytes_to_u128(&supply_data).unwrap();
+
+    total_supply += amount_raw;
+
+    config_store.set(KEY_TOTAL_SUPPLY, &total_supply.to_be_bytes())?;
+
+    let res = HandleResponse {
+        messages: vec![],
+        log: vec![
+            log("action", "mint"),
+            log(
+                "account", recipient.as_str(),
             ),
             log("amount", amount),
         ],

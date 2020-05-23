@@ -36,6 +36,10 @@ pub enum HandleMsg {
     Burn {
         amount: String,
     },
+    Mint {
+        recipient: HumanAddr,
+        amount: String,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
