@@ -36,6 +36,15 @@ pub enum HandleMsg {
     Burn {
         amount: Uint128,
     },
+    Mint {
+        recipient: HumanAddr,
+        amount: Uint128,
+    },
+    AddMinter {
+        address: HumanAddr,
+    },
+    RenounceMinter {
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -48,6 +57,9 @@ pub enum QueryMsg {
         owner: HumanAddr,
         spender: HumanAddr,
     },
+    IsMinter {
+        address: HumanAddr,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema)]
@@ -58,4 +70,9 @@ pub struct BalanceResponse {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema)]
 pub struct AllowanceResponse {
     pub allowance: Uint128,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema)]
+pub struct IsMinterResponse {
+    pub minter: bool,
 }

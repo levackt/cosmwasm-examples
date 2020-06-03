@@ -2,11 +2,9 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::convert::TryInto;
 
-use crate::msg::{AllowanceResponse, BalanceResponse, HandleMsg, InitMsg, QueryMsg};
-use cosmwasm_std::{
-    generic_err, log, to_binary, to_vec, Api, Binary, CanonicalAddr, Env, Extern, HandleResponse,
-    HumanAddr, InitResponse, Querier, ReadonlyStorage, StdResult, Storage, Uint128,
-};
+use crate::state::{config, config_read, State};
+use crate::msg::{AllowanceResponse, BalanceResponse, HandleMsg, InitMsg, QueryMsg, IsMinterResponse};
+use cosmwasm_std::{generic_err, log, to_binary, to_vec, Api, Binary, CanonicalAddr, Env, Extern, HandleResponse, HumanAddr, InitResponse, Querier, ReadonlyStorage, StdResult, Storage, HandleResult, Uint128, unauthorized};
 use cosmwasm_storage::{PrefixedStorage, ReadonlyPrefixedStorage};
 
 #[derive(Serialize, Debug, Deserialize, Clone, PartialEq, JsonSchema)]
@@ -64,6 +62,11 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     config_store.set(KEY_CONSTANTS, &constants)?;
     config_store.set(KEY_TOTAL_SUPPLY, &total_supply.to_be_bytes())?;
 
+    let state = State {
+        minters: vec![_env.message.sender.clone()],
+    };
+    config(&mut deps.storage).save(&state)?;
+
     Ok(InitResponse::default())
 }
 
@@ -72,6 +75,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     env: Env,
     msg: HandleMsg,
 ) -> StdResult<HandleResponse> {
+    let state = config_read(&deps.storage).load()?;
     match msg {
         HandleMsg::Approve { spender, amount } => try_approve(deps, env, &spender, &amount),
         HandleMsg::Transfer { recipient, amount } => try_transfer(deps, env, &recipient, &amount),
@@ -81,6 +85,9 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             amount,
         } => try_transfer_from(deps, env, &owner, &recipient, &amount),
         HandleMsg::Burn { amount } => try_burn(deps, env, &amount),
+        HandleMsg::Mint { recipient, amount } => try_mint(deps, env, state, &recipient, &amount),
+        HandleMsg::AddMinter { address } => add_minter(deps, env, &address),
+        HandleMsg::RenounceMinter {  } => renounce_minter(deps, env),
     }
 }
 
@@ -88,6 +95,8 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     msg: QueryMsg,
 ) -> StdResult<Binary> {
+    let state = config_read(&deps.storage).load()?;
+
     match msg {
         QueryMsg::Balance { address } => {
             let address_key = deps.api.canonical_address(&address)?;
@@ -103,6 +112,12 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
             let allowance = read_allowance(&deps.storage, &owner_key, &spender_key)?;
             let out = to_binary(&AllowanceResponse {
                 allowance: Uint128::from(allowance),
+            })?;
+            Ok(out)
+        }
+        QueryMsg::IsMinter { address } => {
+            let out = to_binary(&IsMinterResponse{
+                minter: state.minters.contains(&deps.api.canonical_address(&address).unwrap())
             })?;
             Ok(out)
         }
@@ -297,6 +312,118 @@ fn perform_transfer<T: Storage>(
     Ok(())
 }
 
+/// Mint tokens
+///
+/// Add `amount` tokens to the recipient account, signer must be owner
+///
+/// @param amount the amount of money to mint
+fn try_mint<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+    state: State,
+    recipient: &HumanAddr,
+    amount: &Uint128,
+) -> HandleResult {
+    let amount_raw = amount.u128();
+    let recipient_raw = deps.api.canonical_address(recipient)?;
+
+    let mut account_balance = read_balance(&deps.storage, &recipient_raw)?;
+
+    account_balance += amount_raw;
+
+    let mut balances_store = PrefixedStorage::new(PREFIX_BALANCES, &mut deps.storage);
+
+    balances_store.set(recipient_raw.as_slice(), &account_balance.to_be_bytes())?;
+
+    let mut config_store = PrefixedStorage::new(PREFIX_CONFIG, &mut deps.storage);
+
+    if !state.minters.contains(&env.message.sender) {
+        unauthorized();
+    };
+
+    let supply_data = config_store
+        .get(KEY_TOTAL_SUPPLY)
+        .expect("could not read total supply")
+        .expect("no total supply data stored");
+    let mut total_supply = bytes_to_u128(&supply_data).unwrap();
+
+    total_supply += amount_raw;
+
+    config_store.set(KEY_TOTAL_SUPPLY, &total_supply.to_be_bytes())?;
+
+    let res = HandleResponse {
+        messages: vec![],
+        log: vec![
+            log("action", "mint"),
+            log(
+                "account", recipient.as_str(),
+            ),
+            log("amount", &amount.to_string()),
+        ],
+        data: None,
+    };
+
+    Ok(res)
+}
+
+/// Add minter. sender must already be a minter
+///
+/// @param address of the new minter
+fn add_minter<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+    address: &HumanAddr,
+) -> HandleResult {
+
+    let mut state = config(&mut deps.storage).load()?;
+
+    if !state.minters.contains(&env.message.sender) {
+        unauthorized();
+    } else {
+        state.minters.push(deps.api.canonical_address(&address).unwrap());
+    }
+    config(&mut deps.storage).save(&state)?;
+
+    let res = HandleResponse {
+        messages: vec![],
+        log: vec![
+            log("action", "minter_added"),
+            log("minter", address.as_str()),
+        ],
+        data: None,
+    };
+
+    Ok(res)
+}
+
+/// Renounce minter. sender must already be a minter
+fn renounce_minter<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+) -> HandleResult {
+
+    let mut state = config(&mut deps.storage).load()?;
+
+    if !state.minters.contains(&env.message.sender) {
+        unauthorized();
+    } else {
+        let index = state.minters.iter().position(|x| *x == env.message.sender).unwrap();
+        state.minters.remove(index);
+    }
+    config(&mut deps.storage).save(&state)?;
+
+    let res = HandleResponse {
+        messages: vec![],
+        log: vec![
+            log("action", "minter_added"),
+            log("minter", deps.api.human_address(&env.message.sender)?.as_str())
+        ],
+        data: None,
+    };
+
+    Ok(res)
+}
+
 // Converts 16 bytes value into u128
 // Errors if data found that is not 16 bytes
 pub fn bytes_to_u128(data: &[u8]) -> StdResult<u128> {
@@ -313,6 +440,14 @@ pub fn read_u128<S: ReadonlyStorage>(store: &S, key: &[u8]) -> StdResult<u128> {
     match result {
         Some(data) => bytes_to_u128(&data),
         None => Ok(0u128),
+    }
+}
+
+// Source must be a decadic integer >= 0
+pub fn parse_u128(source: &str) -> StdResult<u128> {
+    match source.parse::<u128>() {
+        Ok(value) => Ok(value),
+        Err(_) => Err(generic_err("Error while parsing string to u128")),
     }
 }
 

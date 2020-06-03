@@ -1,6 +1,6 @@
 use cosmwasm_std::testing::{mock_dependencies, mock_env};
 use cosmwasm_std::{
-    from_slice, log, Api, Env, HumanAddr, ReadonlyStorage, StdError, Storage, Uint128,
+    from_slice, log, Api, Env, HumanAddr, ReadonlyStorage, StdError, Storage, Uint128, from_binary
 };
 use cosmwasm_storage::ReadonlyPrefixedStorage;
 
@@ -929,6 +929,77 @@ mod transfer_from {
     }
 }
 
+mod mint {
+    use super::*;
+
+    fn make_init_msg() -> InitMsg {
+        InitMsg {
+            name: "Cash Token".to_string(),
+            symbol: "CASH".to_string(),
+            decimals: 9,
+            initial_balances: vec![
+                InitialBalance {
+                    address: HumanAddr("addr0000".to_string()),
+                    amount: Uint128::from(11u128),
+                },
+                InitialBalance {
+                    address: HumanAddr("addr1111".to_string()),
+                    amount: Uint128::from(22u128),
+                },
+            ],
+        }
+    }
+
+    #[test]
+    fn can_mint() {
+        let mut deps = mock_dependencies(CANONICAL_LENGTH, &[]);
+        let init_msg = make_init_msg();
+        let env1 = mock_env_height(&deps.api, &HumanAddr("creator".to_string()), 450, 550);
+        let res = init(&mut deps, env1, init_msg).unwrap();
+        assert_eq!(0, res.messages.len());
+
+        // Initial state
+        assert_eq!(
+            get_balance(&deps.api, &deps.storage, &HumanAddr("addr0000".to_string())),
+            11
+        );
+        assert_eq!(
+            get_balance(&deps.api, &deps.storage, &HumanAddr("addr1111".to_string())),
+            22
+        );
+        assert_eq!(get_total_supply(&deps.storage), 33);
+
+        // Mint
+        let recipient = HumanAddr("addr1111".to_string());
+        let mint_msg = HandleMsg::Mint {
+            recipient,
+            amount: Uint128::from(1u128),
+        };
+        let env2 = mock_env_height(&deps.api, &HumanAddr("creator".to_string()), 450, 550);
+        let mint_result = handle(&mut deps, env2, mint_msg).unwrap();
+        assert_eq!(mint_result.messages.len(), 0);
+        assert_eq!(
+            mint_result.log,
+            vec![
+                log("action", "mint"),
+                log("account", "addr1111"),
+                log("amount", "1")
+            ]
+        );
+
+        // New state
+        assert_eq!(
+            get_balance(&deps.api, &deps.storage, &HumanAddr("addr0000".to_string())),
+            11
+        ); // +1
+        assert_eq!(
+            get_balance(&deps.api, &deps.storage, &HumanAddr("addr1111".to_string())),
+            23
+        );
+        assert_eq!(get_total_supply(&deps.storage), 34);
+    }
+}
+
 mod burn {
     use super::*;
 
@@ -1092,6 +1163,7 @@ mod burn {
 
 mod query {
     use super::*;
+    use crate::msg::IsMinterResponse;
 
     fn address(index: u8) -> HumanAddr {
         match index {
@@ -1125,6 +1197,39 @@ mod query {
             ],
         }
     }
+
+    #[test]
+    fn can_query_is_minter() {
+        let mut deps = mock_dependencies(CANONICAL_LENGTH, &[]);
+        let init_msg = make_init_msg();
+        let env1 = mock_env_height(&deps.api, &address(0), 450, 550);
+        let res = init(&mut deps, env1, init_msg).unwrap();
+        assert_eq!(0, res.messages.len());
+
+        let query_msg = QueryMsg::IsMinter {
+            address: address(0),
+        };
+        let query_result = query(&deps, query_msg).unwrap();
+        let is_minter: IsMinterResponse = from_binary(&query_result).unwrap();
+        assert_eq!(is_minter.minter, true);
+    }
+
+    #[test]
+    fn query_not_minter() {
+        let mut deps = mock_dependencies(CANONICAL_LENGTH, &[]);
+        let init_msg = make_init_msg();
+        let env1 = mock_env_height(&deps.api, &address(0), 450, 550);
+        let res = init(&mut deps, env1, init_msg).unwrap();
+        assert_eq!(0, res.messages.len());
+
+        let query_msg = QueryMsg::IsMinter {
+            address: address(1),
+        };
+        let query_result = query(&deps, query_msg).unwrap();
+        let is_minter: IsMinterResponse = from_binary(&query_result).unwrap();
+        assert_eq!(is_minter.minter, false);
+    }
+
 
     #[test]
     fn can_query_balance_of_existing_address() {

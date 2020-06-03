@@ -18,6 +18,7 @@ use std::collections::{HashMap, HashSet};
 const MIN_STAKE_AMOUNT: u128 = 10;
 const MIN_DESC_LENGTH: usize = 3;
 const MAX_DESC_LENGTH: usize = 64;
+const VOTING_TOKEN: &'static str = "voting_token";
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
@@ -252,8 +253,6 @@ pub fn create_poll<S: Storage, A: Api, Q: Querier>(
 /*
  * Ends a poll. Only the creator of a given poll can end that poll.
  */
-const VOTING_TOKEN: &'static str = "voting_token";
-
 pub fn end_poll<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
@@ -367,14 +366,8 @@ fn locked_amount<S: Storage, A: Api, Q: Querier>(voter: &CanonicalAddr, deps: &m
     largest
 }
 
-
-//todo optimize has_voted, maybe use another bucket
 fn has_voted(voter: &CanonicalAddr, a_poll: &Poll) -> bool {
-
-    if a_poll.voters.iter().any(|i| i == voter) {
-        return true;
-    };
-    return false;
+    return a_poll.voters.contains(voter)
 }
 
 pub fn cast_vote<S: Storage, A: Api, Q: Querier>(
