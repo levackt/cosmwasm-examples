@@ -19,10 +19,10 @@ pub const PREFIX_ALLOWANCES: &[u8] = b"allowances";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
-    pub token: CanonicalAddr,
+    pub denom: String,
     pub owner: CanonicalAddr,
     pub poll_count: u64,
-    pub staked_tokens: Uint128, //todo redundant
+    pub staked_tokens: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
