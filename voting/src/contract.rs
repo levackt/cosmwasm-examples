@@ -15,7 +15,7 @@ use std::convert::TryInto;
 use std::collections::{HashMap, HashSet};
 
 
-const MIN_STAKE_AMOUNT: u128 = 10;
+const MIN_STAKE_AMOUNT: u128 = 1;
 const MIN_DESC_LENGTH: usize = 3;
 const MAX_DESC_LENGTH: usize = 64;
 const VOTING_TOKEN: &'static str = "voting_token";
@@ -113,7 +113,6 @@ pub fn stake_voting_tokens<S: Storage, A: Api, Q: Querier>(
 
     bank(&mut deps.storage).save(key, &token_manager)?;
 
-    //todo confirm only VOTING_TOKEN
     send_tokens(
         &deps.api,
         &env.message.sender,
@@ -192,8 +191,8 @@ fn validate_description(description: &str) -> StdResult<()> {
 /// validate_quorum_percentage returns an error if the quorum_percentage is invalid
 /// (we require 1-100)
 fn validate_quorum_percentage(quorum_percentage: u8) -> StdResult<()> {
-    if quorum_percentage <= 0 || quorum_percentage > 100 {
-        Err(generic_err("quorum_percentage must be 1 to 100"))
+    if quorum_percentage < 0 || quorum_percentage > 100 {
+        Err(generic_err("quorum_percentage must be 0 to 100"))
     } else {
         Ok(())
     }
@@ -286,7 +285,6 @@ pub fn end_poll<S: Storage, A: Api, Q: Querier>(
     let mut yes = 0u128;
 
     for voter in &a_poll.voter_info {
-        // todo abstain and veto
         if voter.vote == "yes" {
             yes += voter.weight.u128();
         } else {
@@ -319,6 +317,8 @@ pub fn end_poll<S: Storage, A: Api, Q: Querier>(
         } else {
             rejected_reason = "Threshold not reached";
         }
+    } else if tallied_weight == 0 && a_poll.quorum_percentage == 0 {
+        rejected_reason = "No votes";
     } else {
         rejected_reason = "Quorum not reached";
     }
@@ -618,7 +618,7 @@ mod tests {
 
         match res {
             Ok(_) => panic!("Must return error"),
-            Err(StdError::GenericErr { msg, .. }) => assert_eq!(msg, "quorum_percentage must be 1 to 100"),
+            Err(StdError::GenericErr { msg, .. }) => assert_eq!(msg, "quorum_percentage must be 0 to 100"),
             Err(e) => panic!("Unexpected error: {:?}", e),
         }
     }
@@ -678,6 +678,46 @@ mod tests {
         let env = mock_env(&deps.api, "creator", &coins(2, VOTING_TOKEN));
 
         let msg = create_poll_msg(30, "test".to_string(),
+                                  None, None);
+
+        let handle_res = handle(&mut deps, env, msg.clone()).unwrap();
+        assert_eq!(
+            handle_res.log,
+            vec![
+                log("action", "create_poll"),
+                log("creator", "creator"),
+                log("poll_id", "1"),
+            ]
+        );
+
+        //confirm poll count
+        let state = config_read(&mut deps.storage).load().unwrap();
+        assert_eq!(
+            state,
+            State {
+                token: deps
+                    .api
+                    .canonical_address(&HumanAddr::from(VOTING_TOKEN))
+                    .unwrap(),
+
+                owner: deps
+                    .api
+                    .canonical_address(&HumanAddr::from("creator"))
+                    .unwrap(),
+                poll_count: 1,
+                staked_tokens: Uint128::zero(),
+            }
+        );
+    }
+
+    #[test]
+    fn create_poll_no_quorum() {
+
+        let mut deps = mock_dependencies(20, &[]);
+        mock_init(&mut deps);
+        let env = mock_env(&deps.api, "creator", &coins(2, VOTING_TOKEN));
+
+        let msg = create_poll_msg(0, "test".to_string(),
                                   None, None);
 
         let handle_res = handle(&mut deps, env, msg.clone()).unwrap();
@@ -785,6 +825,87 @@ mod tests {
             ]
         );
     }
+
+    #[test]
+    fn happy_days_end_poll_one_vote() {
+
+        let mut deps = mock_dependencies(20, &coins(1000, VOTING_TOKEN));
+        mock_init(&mut deps);
+        let env = mock_env_height(&deps.api, "creator",
+                                  &coins(2, VOTING_TOKEN),
+                                  1000,
+                                  10000);
+
+        let msg = create_poll_msg(0,"test".to_string(), None, None);
+
+        let handle_res = handle(&mut deps, env.clone(), msg);
+        let msg = HandleMsg::StakeVotingTokens {  };
+        let env = mock_env(&deps.api, "voter", &coins(1, VOTING_TOKEN));
+
+        let handle_res = handle(&mut deps, env, msg.clone()).unwrap();
+
+        let env = mock_env(&deps.api, "voter", &coins(1, VOTING_TOKEN));
+        let msg = HandleMsg::CastVote {
+            poll_id: 1,
+            encrypted_vote: "yes".to_string(),
+            weight: Uint128::from(1u128),
+        };
+        let res = handle(&mut deps, env.clone(), msg);
+
+        let env = mock_env_height(&deps.api, "creator",
+                                  &coins(2, VOTING_TOKEN),
+                                  1000,
+                                  10000);
+
+
+        let msg = HandleMsg::EndPoll {
+            poll_id: 1
+        };
+
+        let handle_res = handle(&mut deps, env.clone(), msg).unwrap();
+
+        assert_eq!(
+            handle_res.log,
+            vec![
+                log("action", "end_poll"),
+                log("poll_id", "1"),
+                log("rejected_reason", ""),
+                log("passed", "true"),
+            ]
+        );
+    }
+
+    #[test]
+    fn end_poll_zero_quorum() {
+
+        let mut deps = mock_dependencies(20, &coins(1000, VOTING_TOKEN));
+        mock_init(&mut deps);
+        let env = mock_env_height(&deps.api, "creator",
+                                  &coins(2, VOTING_TOKEN),
+                                  1000,
+                                  10000);
+
+        let msg = create_poll_msg(0,"test".to_string(), None, None);
+
+        let handle_res = handle(&mut deps, env.clone(), msg);
+
+        let msg = HandleMsg::EndPoll {
+            poll_id: 1
+        };
+
+        let handle_res = handle(&mut deps, env.clone(), msg).unwrap();
+
+        assert_eq!(
+            handle_res.log,
+            vec![
+                log("action", "end_poll"),
+                log("poll_id", "1"),
+                log("rejected_reason", "No votes"),
+                log("passed", "false"),
+            ]
+        );
+    }
+
 
     #[test]
     fn end_poll_quorum_rejected() {
