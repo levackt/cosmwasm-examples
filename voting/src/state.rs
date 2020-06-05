@@ -27,10 +27,20 @@ pub struct State {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct TokenManager {
-    pub token_balance: Uint128,
-    // pub locked_tokens: HashMap<u64, Uint128>,
-    //todo map poll_id to weight voted, mainly to find the largest weight staked at withdrawal time
-    pub participated_polls: Vec<u64>, // todo set of polls for the voter
+    pub token_balance: Uint128, // total staked balance
+    pub locked_tokens: HashMap<u64, Uint128>, //maps poll_id to weight voted
+    pub participated_polls: Vec<u64>, // poll_id
+}
+
+impl TokenManager {
+    pub fn new() -> Self {
+        let balance = Uint128::zero();
+        TokenManager {
+            token_balance: balance,
+            locked_tokens: HashMap::new(),
+            participated_polls: Vec::new()
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

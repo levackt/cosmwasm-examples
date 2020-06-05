@@ -84,14 +84,9 @@ pub fn stake_voting_tokens<S: Storage, A: Api, Q: Querier>(
 
     let key = &env.message.sender.as_slice();
 
-    let balance = Uint128::zero();
-
     let mut token_manager = match bank_read(&deps.storage).may_load(key)? {
         Some(token_manager) => Some(token_manager),
-        None => Some(TokenManager {
-            token_balance: balance,
-            participated_polls: Vec::new()
-        }),
+        None => Some(TokenManager::new()),
     }.unwrap();
 
     let mut state = config(&mut deps.storage).load()?;
@@ -346,6 +341,16 @@ pub fn end_poll<S: Storage, A: Api, Q: Querier>(
     Ok(r)
 }
 
+// unlock voter's tokens in a given poll
+fn unlock_tokens<S: Storage, A: Api, Q: Querier>(deps: &mut Extern<S, A, Q>,
+                                                 voter: &CanonicalAddr,
+                                                 poll_id: u64) {
+    let voter_key = &voter.as_slice();
+    let mut token_manager = bank_read(&deps.storage).load(voter_key).unwrap();
+    token_manager.locked_tokens.insert(poll_id, Uint128::zero());
+    bank(&mut deps.storage).save(voter_key, &token_manager);
+}
+
 // finds the largest locked amount in participated polls.
 fn locked_amount<S: Storage, A: Api, Q: Querier>(voter: &CanonicalAddr, deps: &mut Extern<S, A, Q>) -> u128 {
 
@@ -354,12 +359,9 @@ fn locked_amount<S: Storage, A: Api, Q: Querier>(voter: &CanonicalAddr, deps: &m
     let voter_key = &voter.as_slice();
     let token_manager = bank_read(&deps.storage).load(voter_key).unwrap();
 
-    token_manager.participated_polls.iter().for_each(| poll_id | {
-        let poll_key = get_poll_voter_key(*poll_id, &voter);
-        let voter_info = poll_voter_info_read(&deps.storage).load(poll_key.as_bytes()).unwrap();
-
-        if voter_info.weight.u128() > largest {
-            largest = voter_info.weight.u128();
+    token_manager.locked_tokens.values().for_each(| weight | {
+        if weight.u128() > largest {
+            largest = weight.u128();
         }
     });
 
@@ -396,10 +398,7 @@ pub fn cast_vote<S: Storage, A: Api, Q: Querier>(
     let voter_key = &env.message.sender.as_slice();
     let mut token_manager = match bank_read(&deps.storage).may_load(voter_key)? {
         Some(token_manager) => Some(token_manager),
-        None => Some(TokenManager {
-            token_balance: Uint128::zero(),
-            participated_polls: Vec::new(),
-        }),
+        None => Some(TokenManager::new()),
     }.unwrap();
 
     if &token_manager.token_balance < &weight {
@@ -514,10 +513,7 @@ fn token_balance<S: Storage, A: Api, Q: Querier>(
 
     let token_manager = match bank_read(&deps.storage).may_load(key.as_slice())? {
         Some(token_manager) => Some(token_manager),
-        None => Some(TokenManager {
-            token_balance: Uint128::zero(),
-            participated_polls: Vec::new()
-        }),
+        None => Some(TokenManager::new()),
     }.unwrap();
 
     let resp = TokenStakeResponse { token_balance: token_manager.token_balance };
