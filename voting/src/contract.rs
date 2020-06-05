@@ -4,9 +4,7 @@ use cosmwasm_std::{generic_err, log, coin, to_binary,
                    Uint128, ReadonlyStorage, HumanAddr};
 use crate::coin_helpers::assert_sent_sufficient_coin;
 use crate::msg::{HandleMsg, InitMsg, QueryMsg, PollResponse, TokenStakeResponse, CreatePollResponse};
-use crate::state::{config, config_read, bank, bank_read, poll, poll_read, poll_voters,
-                   poll_voter_info, poll_voter_info_read, next_poll_id,
-                   locked_tokens, locked_tokens_read,
+use crate::state::{config, config_read, bank, bank_read, poll, poll_read,
                    State, TokenManager, Poll, PollStatus, Voter};
 use std::convert::TryInto;
 
@@ -319,11 +317,8 @@ pub fn end_poll<S: Storage, A: Api, Q: Querier>(
     a_poll.status = poll_status;
     poll(&mut deps.storage).save(key.as_bytes(), &a_poll)?;
 
-
     for voter in &a_poll.voters {
-        let result = locked_tokens(&mut deps.storage).save(
-            get_poll_voter_key(poll_id, &voter).as_bytes(), &Uint128::zero());
-        assert!(result.is_ok())
+        unlock_tokens(deps, voter, poll_id);
     }
 
     let log = vec![
@@ -405,6 +400,9 @@ pub fn cast_vote<S: Storage, A: Api, Q: Querier>(
         return Err(generic_err("User does not have enough staked tokens."));
     }
     token_manager.participated_polls.push(poll_id);
+    token_manager.locked_tokens.insert(poll_id, weight);
+    bank(&mut deps.storage).save(voter_key, &token_manager)?;
+
     a_poll.voters.push(env.message.sender.clone());
 
     let voter_info = Voter {
@@ -412,13 +410,8 @@ pub fn cast_vote<S: Storage, A: Api, Q: Querier>(
         weight
     };
 
-    poll_voter_info(&mut deps.storage).save(
-        get_poll_voter_key(poll_id, &env.message.sender).as_bytes(),
-        &voter_info)?;
-
     a_poll.voter_info.push(voter_info);
     poll(&mut deps.storage).save(poll_key.as_bytes(), &a_poll)?;
-    bank(&mut deps.storage).save(voter_key, &token_manager)?;
 
     let log = vec![
         log("action", "vote_casted"),
@@ -433,12 +426,6 @@ pub fn cast_vote<S: Storage, A: Api, Q: Querier>(
         data: None,
     };
     Ok(r)
-}
-
-// todo maybe redundant once storage is optimized
-fn get_poll_voter_key(poll_id: u64, voter_address: &CanonicalAddr) -> String {
-    let poll_voter_key = poll_id.to_string() + &voter_address.to_string();
-    poll_voter_key
 }
 
 fn send_tokens<A: Api>(

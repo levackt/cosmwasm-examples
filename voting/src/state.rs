@@ -34,11 +34,13 @@ pub struct TokenManager {
 
 impl TokenManager {
     pub fn new() -> Self {
-        let balance = Uint128::zero();
+        let token_balance = Uint128::zero();
+        let locked_tokens = HashMap::new();
+        let participated_polls = Vec::new();
         TokenManager {
-            token_balance: balance,
-            locked_tokens: HashMap::new(),
-            participated_polls: Vec::new()
+            token_balance,
+            locked_tokens,
+            participated_polls,
         }
     }
 }
@@ -96,30 +98,6 @@ pub fn bank<S: Storage>(storage: &mut S) -> Bucket<S, TokenManager> {
 
 pub fn bank_read<S: Storage>(storage: &S) -> ReadonlyBucket<S, TokenManager> {
     bucket_read( BANK_KEY, storage)
-}
-
-pub fn poll_voters<S: Storage>(storage: &mut S) -> Bucket<S, Voter> {
-    bucket(POLL_VOTERS_KEY, storage)
-}
-
-pub fn poll_voters_read<S: Storage>(storage: &S) -> ReadonlyBucket<S, Voter> {
-    bucket_read( POLL_VOTERS_KEY, storage)
-}
-
-pub fn poll_voter_info<S: Storage>(storage: &mut S) -> Bucket<S, Voter> {
-    bucket(POLL_VOTER_INFO_KEY, storage)
-}
-
-pub fn poll_voter_info_read<S: Storage>(storage: &S) -> ReadonlyBucket<S, Voter> {
-    bucket_read( POLL_VOTER_INFO_KEY, storage)
-}
-
-pub fn locked_tokens<S: Storage>(storage: &mut S) -> Bucket<S, Uint128> {
-    bucket(LOCKED_TOKENS_KEY, storage)
-}
-
-pub fn locked_tokens_read<S: Storage>(storage: &S) -> ReadonlyBucket<S, Uint128> {
-    bucket_read( LOCKED_TOKENS_KEY, storage)
 }
 
 pub fn next_poll_id<S: Storage>(storage: &mut S) -> StdResult<u64> {
