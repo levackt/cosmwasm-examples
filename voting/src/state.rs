@@ -1,21 +1,14 @@
 use cosmwasm_std::{CanonicalAddr, HumanAddr, Env, Storage, Uint128, StdResult};
 use cosmwasm_storage::{
     bucket, bucket_read, singleton, singleton_read, Bucket, ReadonlyBucket, ReadonlySingleton,
-    Singleton, ReadonlyPrefixedStorage, sequence, nextval, currval,
+    Singleton, ReadonlyPrefixedStorage
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
 
 static CONFIG_KEY: &[u8] = b"config";
-static POLL_ID: &[u8] = b"poll_id";
 static POLL_KEY: &[u8] = b"polls";
-static POLL_VOTERS_KEY: &[u8] = b"poll_voters";
-static POLL_VOTER_INFO_KEY: &[u8] = b"poll_voter_info";
-static LOCKED_TOKENS_KEY: &[u8] = b"locked_tokens";
 static BANK_KEY: &[u8] = b"bank";
-pub const PREFIX_VOTERS: &[u8] = b"voters";
-pub const PREFIX_ALLOWANCES: &[u8] = b"allowances";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
@@ -25,12 +18,11 @@ pub struct State {
     pub staked_tokens: Uint128,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Default, Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct TokenManager {
-    pub token_balance: Uint128,
-    // pub locked_tokens: HashMap<u64, Uint128>,
-    //todo map poll_id to weight voted, mainly to find the largest weight staked at withdrawal time
-    pub participated_polls: Vec<u64>, // todo set of polls for the voter
+    pub token_balance: Uint128, // total staked balance
+    pub locked_tokens: Vec<(u64, Uint128)>, //maps poll_id to weight voted
+    pub participated_polls: Vec<u64>, // poll_id
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -87,38 +79,3 @@ pub fn bank<S: Storage>(storage: &mut S) -> Bucket<S, TokenManager> {
 pub fn bank_read<S: Storage>(storage: &S) -> ReadonlyBucket<S, TokenManager> {
     bucket_read( BANK_KEY, storage)
 }
-
-pub fn poll_voters<S: Storage>(storage: &mut S) -> Bucket<S, Voter> {
-    bucket(POLL_VOTERS_KEY, storage)
-}
-
-pub fn poll_voters_read<S: Storage>(storage: &S) -> ReadonlyBucket<S, Voter> {
-    bucket_read( POLL_VOTERS_KEY, storage)
-}
-
-pub fn poll_voter_info<S: Storage>(storage: &mut S) -> Bucket<S, Voter> {
-    bucket(POLL_VOTER_INFO_KEY, storage)
-}
-
-pub fn poll_voter_info_read<S: Storage>(storage: &S) -> ReadonlyBucket<S, Voter> {
-    bucket_read( POLL_VOTER_INFO_KEY, storage)
-}
-
-pub fn locked_tokens<S: Storage>(storage: &mut S) -> Bucket<S, Uint128> {
-    bucket(LOCKED_TOKENS_KEY, storage)
-}
-
-pub fn locked_tokens_read<S: Storage>(storage: &S) -> ReadonlyBucket<S, Uint128> {
-    bucket_read( LOCKED_TOKENS_KEY, storage)
-}
-
-pub fn next_poll_id<S: Storage>(storage: &mut S) -> StdResult<u64> {
-    let mut seq = sequence(storage, POLL_ID);
-    nextval(&mut seq)
-}
-
-//todo currval for poll count if needed
-// pub fn curr_poll_id<S: Storage>(storage: &S) -> StdResult<u64> {
-//     let mut seq = singleton(storage, POLL_ID);
-//     currval(&mut seq)
-// }
