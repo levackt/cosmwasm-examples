@@ -5,7 +5,6 @@ use cosmwasm_storage::{
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
 
 static CONFIG_KEY: &[u8] = b"config";
 static POLL_KEY: &[u8] = b"polls";
@@ -19,24 +18,11 @@ pub struct State {
     pub staked_tokens: Uint128,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Default, Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct TokenManager {
     pub token_balance: Uint128, // total staked balance
-    pub locked_tokens: HashMap<u64, Uint128>, //maps poll_id to weight voted
+    pub locked_tokens: Vec<(u64, Uint128)>, //maps poll_id to weight voted
     pub participated_polls: Vec<u64>, // poll_id
-}
-
-impl TokenManager {
-    pub fn new() -> Self {
-        let token_balance = Uint128::zero();
-        let locked_tokens = HashMap::new();
-        let participated_polls = Vec::new();
-        TokenManager {
-            token_balance,
-            locked_tokens,
-            participated_polls,
-        }
-    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

@@ -5,7 +5,7 @@ use cosmwasm_std::{generic_err, log, coin, to_binary,
 use crate::coin_helpers::assert_sent_sufficient_coin;
 use crate::msg::{HandleMsg, InitMsg, QueryMsg, PollResponse, TokenStakeResponse, CreatePollResponse};
 use crate::state::{config, config_read, bank, bank_read, poll, poll_read,
-                   State, TokenManager, Poll, PollStatus, Voter};
+                   State, Poll, PollStatus, Voter};
 use std::convert::TryInto;
 
 
@@ -82,10 +82,7 @@ pub fn stake_voting_tokens<S: Storage, A: Api, Q: Querier>(
 
     let key = &env.message.sender.as_slice();
 
-    let mut token_manager = match bank_read(&deps.storage).may_load(key)? {
-        Some(token_manager) => Some(token_manager),
-        None => Some(TokenManager::new()),
-    }.unwrap();
+    let mut token_manager = bank_read(&deps.storage).may_load(key)?.unwrap_or_default();
 
     let mut state = config(&mut deps.storage).load()?;
 
@@ -342,23 +339,18 @@ fn unlock_tokens<S: Storage, A: Api, Q: Querier>(deps: &mut Extern<S, A, Q>,
                                                  poll_id: u64) {
     let voter_key = &voter.as_slice();
     let mut token_manager = bank_read(&deps.storage).load(voter_key).unwrap();
-    token_manager.locked_tokens.insert(poll_id, Uint128::zero());
+
+    // unlock entails removing the mapped poll_id, retaining the rest
+    token_manager.locked_tokens.retain(|(k, _), | k != &poll_id);
     bank(&mut deps.storage).save(voter_key, &token_manager);
 }
 
 // finds the largest locked amount in participated polls.
 fn locked_amount<S: Storage, A: Api, Q: Querier>(voter: &CanonicalAddr, deps: &mut Extern<S, A, Q>) -> u128 {
 
-    let mut largest = 0u128;
-
     let voter_key = &voter.as_slice();
     let token_manager = bank_read(&deps.storage).load(voter_key).unwrap();
-
-    token_manager.locked_tokens.values().for_each(| weight | {
-        if weight.u128() > largest {
-            largest = weight.u128();
-        }
-    });
+    let largest = token_manager.locked_tokens.iter().map(|(_, v)| v.u128()).max().unwrap_or_default();
 
     largest
 }
@@ -390,18 +382,15 @@ pub fn cast_vote<S: Storage, A: Api, Q: Querier>(
         return Err(generic_err("User has already voted."));
     }
 
-    let voter_key = &env.message.sender.as_slice();
-    let mut token_manager = match bank_read(&deps.storage).may_load(voter_key)? {
-        Some(token_manager) => Some(token_manager),
-        None => Some(TokenManager::new()),
-    }.unwrap();
+    let key = &env.message.sender.as_slice();
+    let mut token_manager = bank_read(&deps.storage).may_load(key)?.unwrap_or_default();
 
     if &token_manager.token_balance < &weight {
         return Err(generic_err("User does not have enough staked tokens."));
     }
     token_manager.participated_polls.push(poll_id);
-    token_manager.locked_tokens.insert(poll_id, weight);
-    bank(&mut deps.storage).save(voter_key, &token_manager)?;
+    token_manager.locked_tokens.push((poll_id, weight));
+    bank(&mut deps.storage).save(key, &token_manager)?;
 
     a_poll.voters.push(env.message.sender.clone());
 
@@ -417,7 +406,7 @@ pub fn cast_vote<S: Storage, A: Api, Q: Querier>(
         log("action", "vote_casted"),
         log("poll_id", &poll_id.to_string()),
         log("weight", &weight.to_string()),
-        log("voter", deps.api.human_address((&env.message.sender)).unwrap().as_str()),
+        log("voter", deps.api.human_address(&env.message.sender).unwrap().as_str()),
     ];
 
     let r = HandleResponse {
@@ -498,10 +487,7 @@ fn token_balance<S: Storage, A: Api, Q: Querier>(
 
     let key = deps.api.canonical_address(&address).unwrap();
 
-    let token_manager = match bank_read(&deps.storage).may_load(key.as_slice())? {
-        Some(token_manager) => Some(token_manager),
-        None => Some(TokenManager::new()),
-    }.unwrap();
+    let token_manager = bank_read(&deps.storage).may_load(key.as_slice())?.unwrap_or_default();
 
     let resp = TokenStakeResponse { token_balance: token_manager.token_balance };
 
