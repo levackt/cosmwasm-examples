@@ -408,36 +408,11 @@ mod tests {
         let env = mock_env(&deps.api, "voter", &coins(11, VOTING_TOKEN));
 
         let handle_res = handle(&mut deps, env, msg.clone()).unwrap();
-        assert_eq!(1, handle_res.messages.len());
-        let msg = handle_res.messages.get(0).expect("no message");
 
-        assert_eq!(
-            msg,
-            &CosmosMsg::Bank(BankMsg::Send {
-                from_address: HumanAddr::from("voter"),
-                to_address: HumanAddr::from("cosmos2contract"),
-                amount: coins(11, VOTING_TOKEN),
-            })
-        );
-        // end extract stake
-
-        // todo extract stake #2
         let msg = HandleMsg::StakeVotingTokens {  };
         let env = mock_env(&deps.api, "voter2", &coins(11, VOTING_TOKEN));
 
         let handle_res = handle(&mut deps, env, msg.clone()).unwrap();
-        assert_eq!(1, handle_res.messages.len());
-        let msg = handle_res.messages.get(0).expect("no message");
-
-        assert_eq!(
-            msg,
-            &CosmosMsg::Bank(BankMsg::Send {
-                from_address: HumanAddr::from("voter2"),
-                to_address: HumanAddr::from("cosmos2contract"),
-                amount: coins(11, VOTING_TOKEN),
-            })
-        );
-        // end extract stake
 
         // todo extract cast_vote
         let env = mock_env(&deps.api, "voter", &coins(11, VOTING_TOKEN));
@@ -488,36 +463,11 @@ mod tests {
         let env = mock_env(&deps.api, "voter", &coins(100, VOTING_TOKEN));
 
         let handle_res = handle(&mut deps, env, msg.clone()).unwrap();
-        assert_eq!(1, handle_res.messages.len());
-        let msg = handle_res.messages.get(0).expect("no message");
 
-        assert_eq!(
-            msg,
-            &CosmosMsg::Bank(BankMsg::Send {
-                from_address: HumanAddr::from("voter"),
-                to_address: HumanAddr::from("cosmos2contract"),
-                amount: coins(100, VOTING_TOKEN),
-            })
-        );
-        // end extract stake
-
-        // todo extract stake #2
         let msg = HandleMsg::StakeVotingTokens {  };
         let env = mock_env(&deps.api, "voter2", &coins(1000, VOTING_TOKEN));
 
         let handle_res = handle(&mut deps, env, msg.clone()).unwrap();
-        assert_eq!(1, handle_res.messages.len());
-        let msg = handle_res.messages.get(0).expect("no message");
-
-        assert_eq!(
-            msg,
-            &CosmosMsg::Bank(BankMsg::Send {
-                from_address: HumanAddr::from("voter2"),
-                to_address: HumanAddr::from("cosmos2contract"),
-                amount: coins(1000, VOTING_TOKEN),
-            })
-        );
-        // end extract stake
 
         // todo extract cast_vote
         let env = mock_env(&deps.api, "voter2", &[]);
@@ -626,23 +576,10 @@ mod tests {
             ]
         );
 
-        // todo extract stake
         let msg = HandleMsg::StakeVotingTokens {  };
         let env = mock_env(&deps.api, "voter1", &coins(11, VOTING_TOKEN));
 
         let handle_res = handle(&mut deps, env, msg.clone()).unwrap();
-        assert_eq!(1, handle_res.messages.len());
-        let msg = handle_res.messages.get(0).expect("no message");
-
-        assert_eq!(
-            msg,
-            &CosmosMsg::Bank(BankMsg::Send {
-                from_address: HumanAddr::from("voter1"),
-                to_address: HumanAddr::from("cosmos2contract"),
-                amount: coins(11, VOTING_TOKEN),
-            })
-        );
-        // end extract stake
 
         // todo extract cast_vote
         let env = mock_env(&deps.api, "voter1", &coins(11, VOTING_TOKEN));
@@ -675,8 +612,6 @@ mod tests {
         let env = mock_env(&deps.api, "voter1", &coins(11, VOTING_TOKEN));
 
         let handle_res = handle(&mut deps, env, msg.clone()).unwrap();
-        assert_eq!(1, handle_res.messages.len());
-        let msg = handle_res.messages.get(0).expect("no message");
 
         let state = config_read(&mut deps.storage).load().unwrap();
         assert_eq!(
@@ -690,15 +625,6 @@ mod tests {
                 poll_count: 0,
                 staked_tokens: Uint128::from(11u128),
             }
-        );
-
-        assert_eq!(
-            msg,
-            &CosmosMsg::Bank(BankMsg::Send {
-                from_address: HumanAddr::from("voter1"),
-                to_address: HumanAddr::from("cosmos2contract"),
-                amount: coins(11, VOTING_TOKEN),
-            })
         );
 
         let env = mock_env(&deps.api, "voter1", &coins(11, VOTING_TOKEN));
@@ -798,24 +724,10 @@ mod tests {
         );
         //end todo 1. extract create_poll
 
-        // todo extract stake
         let msg = HandleMsg::StakeVotingTokens {  };
         let env = mock_env(&deps.api, "voter", &coins(11, VOTING_TOKEN));
 
         let handle_res = handle(&mut deps, env.clone(), msg.clone()).unwrap();
-
-        assert_eq!(1, handle_res.messages.len());
-        let msg = handle_res.messages.get(0).expect("no message");
-
-        assert_eq!(
-            msg,
-            &CosmosMsg::Bank(BankMsg::Send {
-                from_address: HumanAddr::from("voter"),
-                to_address: HumanAddr::from("cosmos2contract"),
-                amount: coins(11, VOTING_TOKEN),
-            })
-        );
-        // end extract stake
 
         // todo extract cast_vote
         let env = mock_env(&deps.api, "voter", &coins(11, VOTING_TOKEN));
@@ -870,8 +782,6 @@ mod tests {
         let env = mock_env(&deps.api, "voter1", &coins(11, VOTING_TOKEN));
 
         let handle_res = handle(&mut deps, env, msg.clone()).unwrap();
-        assert_eq!(1, handle_res.messages.len());
-        let msg = handle_res.messages.get(0).expect("no message");
 
         let state = config_read(&mut deps.storage).load().unwrap();
         assert_eq!(

@@ -80,13 +80,7 @@ pub fn stake_voting_tokens<S: Storage, A: Api, Q: Querier>(
 
     bank(&mut deps.storage).save(key, &token_manager)?;
 
-    send_tokens(
-        &deps.api,
-        &env.message.sender,
-        &env.contract.address,
-        env.message.sent_funds,
-        "approve",
-    )
+    Ok(HandleResponse::default())
 }
 
 // Withdraw amount if not staked. By default all funds will be withdrawn.
