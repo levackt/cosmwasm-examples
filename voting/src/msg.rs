@@ -1,4 +1,4 @@
-use cosmwasm_std::{Coin, HumanAddr, Uint128};
+use cosmwasm_std::{HumanAddr, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use crate::state::{PollStatus};
@@ -22,7 +22,7 @@ pub enum HandleMsg {
         amount: Option<Uint128>
     },
     CreatePoll {
-        quorum_percentage: u8,
+        quorum_percentage: Option<u8>,
         description: String,
         start_height: Option<u64>,
         end_height: Option<u64>,
@@ -48,7 +48,7 @@ pub enum QueryMsg {
 pub struct PollResponse {
     pub creator: HumanAddr,
     pub status : PollStatus,
-    pub quorum_percentage: u8,
+    pub quorum_percentage: Option<u8>,
     pub end_height: Option<u64>,
     pub start_height: Option<u64>,
     pub description: String,

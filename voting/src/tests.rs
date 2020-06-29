@@ -1,16 +1,15 @@
 use cosmwasm_std::testing::{mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage};
-use cosmwasm_std::{generic_err, log, unauthorized, coin, to_binary, from_binary, from_slice, to_vec,
+use cosmwasm_std::{log, coin, to_binary, from_binary, from_slice, to_vec,
                    coins, Api, BankMsg,
                    Binary, CanonicalAddr, Coin, CosmosMsg, Env, Extern, HandleResponse,
                    HandleResult, InitResponse, InitResult, Querier, StdResult, Storage,
-                   Uint128, ReadonlyStorage, HumanAddr};
+                   Uint128, ReadonlyStorage, HumanAddr, StdError};
 use crate::coin_helpers::assert_sent_sufficient_coin;
 use crate::msg::{HandleMsg, InitMsg, QueryMsg, PollResponse, TokenStakeResponse, CreatePollResponse};
 use crate::state::{config, config_read, bank, bank_read, poll, poll_read,
                    State, TokenManager, Poll, PollStatus
 };
 use std::convert::TryInto;
-use std::collections::{HashMap, HashSet};
 
 use crate::contract::{handle, init, query};
 
@@ -149,7 +148,7 @@ mod tests {
     fn create_poll_msg(quorum_percentage: u8, description: String,
                        start_height: Option<u64>, end_height: Option<u64>) -> HandleMsg {
         let msg = HandleMsg::CreatePoll {
-            quorum_percentage,
+            quorum_percentage: Some(quorum_percentage),
             description,
             start_height,
             end_height,
@@ -174,6 +173,9 @@ mod tests {
                 log("action", "create_poll"),
                 log("creator", "creator"),
                 log("poll_id", "1"),
+                log("quorum_percentage", "30"),
+                log("end_height", "0"),
+                log("start_height", "0"),
             ]
         );
 
@@ -210,6 +212,9 @@ mod tests {
                 log("action", "create_poll"),
                 log("creator", "creator"),
                 log("poll_id", "1"),
+                log("quorum_percentage", "0"),
+                log("end_height", "0"),
+                log("start_height", "0"),
             ]
         );
 
@@ -241,7 +246,28 @@ mod tests {
 
         let msg = create_poll_msg(30,"test".to_string(), None, Some(10001));
 
+
+        let handle_res = handle(&mut deps, env.clone(), msg.clone()).unwrap();
+        assert_eq!(
+            handle_res.log,
+            vec![
+                log("action", "create_poll"),
+                log("creator", "creator"),
+                log("poll_id", "1"),
+                log("quorum_percentage", "30"),
+                log("end_height", "10001"),
+                log("start_height", "0"),
+            ]
+        );
+
+
         let handle_res = handle(&mut deps, env.clone(), msg);
+
+        let res = query(&deps, QueryMsg::Poll {
+            poll_id: 1
+        }).unwrap();
+        let value: PollResponse = from_binary(&res).unwrap();
+        assert_eq!(Some(10001), value.end_height);
 
         let msg = HandleMsg::EndPoll {
             poll_id: 1
@@ -401,6 +427,9 @@ mod tests {
                 log("action", "create_poll"),
                 log("creator", "creator"),
                 log("poll_id", "1"),
+                log("quorum_percentage", "30"),
+                log("end_height", "0"),
+                log("start_height", "0"),
             ]
         );
 
@@ -456,6 +485,9 @@ mod tests {
                 log("action", "create_poll"),
                 log("creator", "creator"),
                 log("poll_id", "1"),
+                log("quorum_percentage", "10"),
+                log("end_height", "0"),
+                log("start_height", "0"),
             ]
         );
 
@@ -506,6 +538,19 @@ mod tests {
 
         let msg = create_poll_msg(30,"test".to_string(), Some(10001), None);
 
+        let handle_res = handle(&mut deps, env.clone(), msg.clone()).unwrap();
+        assert_eq!(
+            handle_res.log,
+            vec![
+                log("action", "create_poll"),
+                log("creator", "creator"),
+                log("poll_id", "1"),
+                log("quorum_percentage", "30"),
+                log("end_height", "0"),
+                log("start_height", "10001"),
+            ]
+        );
+
         let handle_res = handle(&mut deps, env.clone(), msg);
 
         let msg = HandleMsg::EndPoll {
@@ -536,6 +581,9 @@ mod tests {
                 log("action", "create_poll"),
                 log("creator", "creator"),
                 log("poll_id", "1"),
+                log("quorum_percentage", "30"),
+                log("end_height", "0"),
+                log("start_height", "0"),
             ]
         );
         //end todo 1. extract create_poll
@@ -573,6 +621,9 @@ mod tests {
                 log("action", "create_poll"),
                 log("creator", "creator"),
                 log("poll_id", "1"),
+                log("quorum_percentage", "30"),
+                log("end_height", "0"),
+                log("start_height", "0"),
             ]
         );
 
@@ -720,6 +771,9 @@ mod tests {
                 log("action", "create_poll"),
                 log("creator", "creator"),
                 log("poll_id", "1"),
+                log("quorum_percentage", "30"),
+                log("end_height", "0"),
+                log("start_height", "0"),
             ]
         );
         //end todo 1. extract create_poll

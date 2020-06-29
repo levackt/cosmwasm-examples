@@ -1,13 +1,11 @@
-use cosmwasm_std::{generic_err, log, coin, to_binary,
+use cosmwasm_std::{ log, coin, to_binary,
                    Api, BankMsg, Binary, CanonicalAddr, Coin, CosmosMsg, Env, Extern, HandleResponse,
-                   HandleResult, InitResponse, InitResult, Querier, StdResult, Storage,
-                   Uint128, ReadonlyStorage, HumanAddr};
+                   HandleResult, InitResponse, InitResult, StdResult, Querier, Storage,
+                   Uint128, HumanAddr, StdError};
 use crate::coin_helpers::assert_sent_sufficient_coin;
 use crate::msg::{HandleMsg, InitMsg, QueryMsg, PollResponse, TokenStakeResponse, CreatePollResponse};
 use crate::state::{config, config_read, bank, bank_read, poll, poll_read,
                    State, Poll, PollStatus, Voter};
-use std::convert::TryInto;
-
 
 const MIN_STAKE_AMOUNT: u128 = 1;
 const MIN_DESC_LENGTH: usize = 3;
@@ -99,7 +97,7 @@ pub fn withdraw_voting_tokens<S: Storage, A: Api, Q: Querier>(
             None => Some(token_manager.token_balance.u128()),
         }.unwrap();
         if largest_staked + withdraw_amount > token_manager.token_balance.u128()  {
-            Err(generic_err("User is trying to withdraw too many tokens."))
+            Err(StdError::generic_err("User is trying to withdraw too many tokens."))
         } else {
 
             let balance = token_manager.token_balance.u128() - withdraw_amount;
@@ -121,7 +119,7 @@ pub fn withdraw_voting_tokens<S: Storage, A: Api, Q: Querier>(
             )
         }
     } else {
-        Err(generic_err("Nothing staked"))
+        Err(StdError::generic_err("Nothing staked"))
     }
 }
 
@@ -135,15 +133,15 @@ fn invalid_char(c: char) -> bool {
 /// (we require 3-64 lowercase ascii letters, numbers, or . - _)
 fn validate_description(description: &str) -> StdResult<()> {
     if description.len() < MIN_DESC_LENGTH {
-        Err(generic_err("Description too short"))
+        Err(StdError::generic_err("Description too short"))
     } else if description.len() > MAX_DESC_LENGTH {
-        Err(generic_err("Description too long"))
+        Err(StdError::generic_err("Description too long"))
     } else {
         match description.find(invalid_char) {
             None => Ok(()),
             Some(bytepos_invalid_char_start) => {
                 let c = description[bytepos_invalid_char_start..].chars().next().unwrap();
-                Err(generic_err(format!("Invalid character: '{}'", c)))
+                Err(StdError::generic_err(format!("Invalid character: '{}'", c)))
             }
         }
     }
@@ -151,9 +149,9 @@ fn validate_description(description: &str) -> StdResult<()> {
 
 /// validate_quorum_percentage returns an error if the quorum_percentage is invalid
 /// (we require 0-100)
-fn validate_quorum_percentage(quorum_percentage: u8) -> StdResult<()> {
-    if quorum_percentage > 100 {
-        Err(generic_err("quorum_percentage must be 0 to 100"))
+fn validate_quorum_percentage(quorum_percentage: Option<u8>) -> StdResult<()> {
+    if quorum_percentage.is_some() && quorum_percentage.unwrap() > 100 {
+        Err(StdError::generic_err("quorum_percentage must be 0 to 100"))
     } else {
         Ok(())
     }
@@ -164,7 +162,7 @@ pub fn create_poll<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     // state: State,
-    quorum_percentage: u8,
+    quorum_percentage: Option<u8>,
     description: String,
     start_height: Option<u64>,
     end_height: Option<u64>,
@@ -204,8 +202,11 @@ pub fn create_poll<S: Storage, A: Api, Q: Querier>(
                 deps.api.human_address(&new_poll.creator)?.as_str(),
             ),
             log("poll_id", &poll_id.to_string()),
+            log("quorum_percentage", quorum_percentage.unwrap_or(0)),
+            log("end_height", end_height.unwrap_or(0)),
+            log("start_height", start_height.unwrap_or(0)),
         ],
-        data: None,
+        data: Some(to_binary(&CreatePollResponse { poll_id })?),
     };
     Ok(r)
 }
@@ -221,25 +222,25 @@ pub fn end_poll<S: Storage, A: Api, Q: Querier>(
 
     let key = &poll_id.to_string();
     if (poll(&mut deps.storage).may_load(key.as_bytes())?).is_none() {
-        return Err(generic_err("Poll does not exist"));
+        return Err(StdError::generic_err("Poll does not exist"));
     }
 
     let mut a_poll = poll(&mut deps.storage).load(key.as_bytes()).unwrap();
 
     if a_poll.creator != env.message.sender {
-        return Err(generic_err("User is not the creator of the poll."));
+        return Err(StdError::generic_err("User is not the creator of the poll."));
     }
 
     if a_poll.status != PollStatus::InProgress {
-        return Err(generic_err("Poll is not in progress"));
+        return Err(StdError::generic_err("Poll is not in progress"));
     }
 
     if a_poll.start_height.is_some() && a_poll.start_height.unwrap() > env.block.height {
-        return Err(generic_err("Voting period has not started."));
+        return Err(StdError::generic_err("Voting period has not started."));
     }
 
     if a_poll.end_height.is_some() && a_poll.end_height.unwrap() > env.block.height {
-        return Err(generic_err("Voting period has not expired."));
+        return Err(StdError::generic_err("Voting period has not expired."));
     }
 
     let mut no = 0u128;
@@ -268,7 +269,7 @@ pub fn end_poll<S: Storage, A: Api, Q: Querier>(
 
         let quorum = ((tallied_weight / staked_weight.u128()) * 100) as u8;
 
-        if quorum < a_poll.quorum_percentage {
+        if a_poll.quorum_percentage.is_some() && quorum < a_poll.quorum_percentage.unwrap() {
             // Quorum: More than quorum_percentage of the total staked tokens at the end of the voting
             // period need to have participated in the vote.
             rejected_reason = "Quorum not reached";
@@ -280,7 +281,8 @@ pub fn end_poll<S: Storage, A: Api, Q: Querier>(
         } else {
             rejected_reason = "Threshold not reached";
         }
-    } else if tallied_weight == 0 && a_poll.quorum_percentage == 0 {
+    } else if a_poll.quorum_percentage.is_some() &&
+            tallied_weight == 0 && a_poll.quorum_percentage.unwrap() == 0 {
         rejected_reason = "No votes";
     } else {
         rejected_reason = "Quorum not reached";
@@ -343,24 +345,24 @@ pub fn cast_vote<S: Storage, A: Api, Q: Querier>(
 
     let poll_key = &poll_id.to_string();
     if (poll(&mut deps.storage).may_load(poll_key.as_bytes())?).is_none() {
-        return Err(generic_err("Poll does not exist"));
+        return Err(StdError::generic_err("Poll does not exist"));
     }
 
     let mut a_poll = poll(&mut deps.storage).load(poll_key.as_bytes()).unwrap();
 
     if a_poll.status != PollStatus::InProgress {
-        return Err(generic_err("Poll is not in progress"));
+        return Err(StdError::generic_err("Poll is not in progress"));
     }
 
     if has_voted(&env.message.sender, &a_poll) {
-        return Err(generic_err("User has already voted."));
+        return Err(StdError::generic_err("User has already voted."));
     }
 
     let key = &env.message.sender.as_slice();
     let mut token_manager = bank_read(&deps.storage).may_load(key)?.unwrap_or_default();
 
     if &token_manager.token_balance < &weight {
-        return Err(generic_err("User does not have enough staked tokens."));
+        return Err(StdError::generic_err("User does not have enough staked tokens."));
     }
     token_manager.participated_polls.push(poll_id);
     token_manager.locked_tokens.push((poll_id, weight));
@@ -439,7 +441,7 @@ fn query_poll<S: Storage, A: Api, Q: Querier>(
 
     let poll = match poll_read(&deps.storage).may_load(key.as_bytes())? {
         Some(poll) => Some(poll),
-        None => return Err(generic_err("Poll does not exist")),
+        None => return Err(StdError::generic_err("Poll does not exist")),
     }.unwrap();
 
     let resp = PollResponse {

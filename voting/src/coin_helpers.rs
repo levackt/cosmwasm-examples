@@ -1,4 +1,4 @@
-use cosmwasm_std::{generic_err, Coin, StdResult};
+use cosmwasm_std::{StdError, Coin, StdResult};
 
 pub fn assert_sent_sufficient_coin(sent: &[Coin], required: Option<Coin>) -> StdResult<()> {
     if let Some(required_coin) = required {
@@ -10,10 +10,10 @@ pub fn assert_sent_sufficient_coin(sent: &[Coin], required: Option<Coin>) -> Std
                 coin.denom == required_coin.denom && coin.amount.u128() >= required_amount
             });
 
-            if sent_sufficient_funds {
-                return Ok(());
+            return if sent_sufficient_funds {
+                Ok(())
             } else {
-                return Err(generic_err("Insufficient funds sent"));
+                Err(StdError::generic_err("Insufficient funds sent"))
             }
         }
     }

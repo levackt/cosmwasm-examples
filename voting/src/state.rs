@@ -1,7 +1,7 @@
-use cosmwasm_std::{CanonicalAddr, HumanAddr, Env, Storage, Uint128, StdResult};
+use cosmwasm_std::{CanonicalAddr, Storage, Uint128};
 use cosmwasm_storage::{
     bucket, bucket_read, singleton, singleton_read, Bucket, ReadonlyBucket, ReadonlySingleton,
-    Singleton, ReadonlyPrefixedStorage
+    Singleton
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -43,7 +43,7 @@ pub enum PollStatus {
 pub struct Poll {
     pub creator: CanonicalAddr,
     pub status : PollStatus,
-    pub quorum_percentage: u8,
+    pub quorum_percentage: Option<u8>,
     pub yes_votes: Uint128,
     pub no_votes: Uint128,
     pub voters: Vec<CanonicalAddr>,
