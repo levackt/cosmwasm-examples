@@ -135,14 +135,6 @@ mod tests {
             Err(StdError::GenericErr { msg, .. }) => assert_eq!(msg, "Description too long"),
             Err(_) => panic!("Unknown error"),
         }
-
-        let msg = create_poll_msg(100,"Loud".to_string(), None, None);
-
-        match handle(&mut deps, env.clone(), msg) {
-            Ok(_) => panic!("Must return error"),
-            Err(StdError::GenericErr { msg, .. }) => assert_eq!(msg.as_str(), "Invalid character: 'L'"),
-            Err(_) => panic!("Unknown error"),
-        }
     }
 
     fn create_poll_msg(quorum_percentage: u8, description: String,
@@ -259,9 +251,6 @@ mod tests {
                 log("start_height", "0"),
             ]
         );
-
-
-        let handle_res = handle(&mut deps, env.clone(), msg);
 
         let res = query(&deps, QueryMsg::Poll {
             poll_id: 1
@@ -414,13 +403,13 @@ mod tests {
 
     #[test]
     fn end_poll_quorum_rejected() {
-        let mut deps = mock_dependencies(20, &coins(1000, VOTING_TOKEN));
+        let mut deps = mock_dependencies(20, &coins(100, VOTING_TOKEN));
         mock_init(&mut deps);
-        let env = mock_env(&deps.api, "creator", &coins(2, VOTING_TOKEN));
+        let creatorEnv = mock_env(&deps.api, "creator", &coins(2, VOTING_TOKEN));
 
         let msg = create_poll_msg(30,"test".to_string(), None, None);
 
-        let handle_res = handle(&mut deps, env, msg.clone()).unwrap();
+        let handle_res = handle(&mut deps, creatorEnv.clone(), msg.clone()).unwrap();
         assert_eq!(
             handle_res.log,
             vec![
@@ -434,31 +423,32 @@ mod tests {
         );
 
         let msg = HandleMsg::StakeVotingTokens {  };
-        let env = mock_env(&deps.api, "voter", &coins(11, VOTING_TOKEN));
+        let env = mock_env(&deps.api, "voter1", &coins(100, VOTING_TOKEN));
 
-        let handle_res = handle(&mut deps, env, msg.clone()).unwrap();
+        let handle_res = handle(&mut deps, env.clone(), msg.clone()).unwrap();
 
-        let msg = HandleMsg::StakeVotingTokens {  };
-        let env = mock_env(&deps.api, "voter2", &coins(11, VOTING_TOKEN));
-
-        let handle_res = handle(&mut deps, env, msg.clone()).unwrap();
-
-        // todo extract cast_vote
-        let env = mock_env(&deps.api, "voter", &coins(11, VOTING_TOKEN));
         let msg = HandleMsg::CastVote {
             poll_id: 1,
             encrypted_vote: "yes".to_string(),
-            weight: Uint128::from(1u128),
+            weight: Uint128::from(10u128),
         };
-        let res = handle(&mut deps, env, msg);
+        let handle_res = handle(&mut deps, env.clone(), msg).unwrap();
 
-        let env = mock_env(&deps.api, "creator", &coins(11, VOTING_TOKEN));
+        assert_eq!(
+            handle_res.log,
+            vec![
+                log("action", "vote_casted"),
+                log("poll_id", "1"),
+                log("weight", "10"),
+                log("voter", "voter1"),
+            ]
+        );
 
         let msg = HandleMsg::EndPoll {
             poll_id: 1
         };
 
-        let handle_res = handle(&mut deps, env, msg.clone()).unwrap();
+        let handle_res = handle(&mut deps, creatorEnv.clone(), msg.clone()).unwrap();
         assert_eq!(
             handle_res.log,
             vec![

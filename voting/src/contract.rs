@@ -123,27 +123,14 @@ pub fn withdraw_voting_tokens<S: Storage, A: Api, Q: Querier>(
     }
 }
 
-fn invalid_char(c: char) -> bool {
-    let is_valid =
-        (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c == '.' || c == '-' || c == '_' || c == ' ');
-    !is_valid
-}
-
 /// validate_description returns an error if the description is invalid
-/// (we require 3-64 lowercase ascii letters, numbers, or . - _)
 fn validate_description(description: &str) -> StdResult<()> {
     if description.len() < MIN_DESC_LENGTH {
         Err(StdError::generic_err("Description too short"))
     } else if description.len() > MAX_DESC_LENGTH {
         Err(StdError::generic_err("Description too long"))
     } else {
-        match description.find(invalid_char) {
-            None => Ok(()),
-            Some(bytepos_invalid_char_start) => {
-                let c = description[bytepos_invalid_char_start..].chars().next().unwrap();
-                Err(StdError::generic_err(format!("Invalid character: '{}'", c)))
-            }
-        }
+        Ok(())
     }
 }
 
@@ -265,9 +252,9 @@ pub fn end_poll<S: Storage, A: Api, Q: Querier>(
         let state = config_read(&mut deps.storage).load()?;
 
         let staked_weight = deps.querier.query_balance(
-            contract_address_human, &state.denom).unwrap().amount;
+            contract_address_human, &state.denom).unwrap().amount.u128();
 
-        let quorum = ((tallied_weight / staked_weight.u128()) * 100) as u8;
+        let quorum = ((tallied_weight / staked_weight) * 100) as u8;
 
         if a_poll.quorum_percentage.is_some() && quorum < a_poll.quorum_percentage.unwrap() {
             // Quorum: More than quorum_percentage of the total staked tokens at the end of the voting
@@ -281,9 +268,6 @@ pub fn end_poll<S: Storage, A: Api, Q: Querier>(
         } else {
             rejected_reason = "Threshold not reached";
         }
-    } else if a_poll.quorum_percentage.is_some() &&
-            tallied_weight == 0 && a_poll.quorum_percentage.unwrap() == 0 {
-        rejected_reason = "No votes";
     } else {
         rejected_reason = "Quorum not reached";
     }
@@ -291,7 +275,7 @@ pub fn end_poll<S: Storage, A: Api, Q: Querier>(
     poll(&mut deps.storage).save(key.as_bytes(), &a_poll)?;
 
     for voter in &a_poll.voters {
-        unlock_tokens(deps, voter, poll_id);
+        unlock_tokens(deps, voter, poll_id)?;
     }
 
     let log = vec![
@@ -312,13 +296,14 @@ pub fn end_poll<S: Storage, A: Api, Q: Querier>(
 // unlock voter's tokens in a given poll
 fn unlock_tokens<S: Storage, A: Api, Q: Querier>(deps: &mut Extern<S, A, Q>,
                                                  voter: &CanonicalAddr,
-                                                 poll_id: u64) {
+                                                 poll_id: u64) -> HandleResult {
     let voter_key = &voter.as_slice();
     let mut token_manager = bank_read(&deps.storage).load(voter_key).unwrap();
 
     // unlock entails removing the mapped poll_id, retaining the rest
     token_manager.locked_tokens.retain(|(k, _), | k != &poll_id);
-    bank(&mut deps.storage).save(voter_key, &token_manager);
+    bank(&mut deps.storage).save(voter_key, &token_manager)?;
+    Ok(HandleResponse::default())
 }
 
 // finds the largest locked amount in participated polls.
