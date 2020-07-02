@@ -150,7 +150,7 @@ mod tests {
         let msg = create_poll_msg(quorum, "test".to_string(), None, None);
 
         let handle_res = handle(&mut deps, env.clone(), msg.clone()).unwrap();
-        validate_create_poll_result(
+        assert_create_poll_result(
             1,
             quorum,
             DEFAULT_END_HEIGHT,
@@ -171,7 +171,7 @@ mod tests {
         let msg = create_poll_msg(quorum, "test".to_string(), None, None);
 
         let handle_res = handle(&mut deps, env, msg.clone()).unwrap();
-        validate_create_poll_result(
+        assert_create_poll_result(
             1,
             quorum,
             DEFAULT_END_HEIGHT,
@@ -191,7 +191,7 @@ mod tests {
         let msg = create_poll_msg(0, "test".to_string(), None, Some(10001));
 
         let handle_res = handle(&mut deps, env.clone(), msg.clone()).unwrap();
-        validate_create_poll_result(1, 0, 10001, 0, TEST_CREATOR, handle_res, &mut deps);
+        assert_create_poll_result(1, 0, 10001, 0, TEST_CREATOR, handle_res, &mut deps);
 
         let res = query(&deps, QueryMsg::Poll { poll_id: 1 }).unwrap();
         let value: PollResponse = from_binary(&res).unwrap();
@@ -235,7 +235,7 @@ mod tests {
 
         let handle_res = handle(&mut deps, creator_env.clone(), msg).unwrap();
 
-        validate_create_poll_result(
+        assert_create_poll_result(
             1,
             0,
             creator_env.block.height + 1,
@@ -249,7 +249,7 @@ mod tests {
         let env = mock_env(&deps.api, TEST_VOTER, &coins(stake_amount, VOTING_TOKEN));
 
         let handle_res = handle(&mut deps, env.clone(), msg.clone()).unwrap();
-        validate_stake_result(stake_amount, Some(1), handle_res, &mut deps);
+        assert_stake_tokens_result(stake_amount, Some(1), handle_res, &mut deps);
 
         let msg = HandleMsg::CastVote {
             poll_id: 1,
@@ -300,7 +300,7 @@ mod tests {
         let msg = create_poll_msg(0, "test".to_string(), None, Some(env.block.height + 1));
 
         let handle_res = handle(&mut deps, env.clone(), msg).unwrap();
-        validate_create_poll_result(1, 0, 1001, 0, TEST_CREATOR, handle_res, &mut deps);
+        assert_create_poll_result(1, 0, 1001, 0, TEST_CREATOR, handle_res, &mut deps);
         let msg = HandleMsg::EndPoll { poll_id: 1 };
         env.block.height = &env.block.height + 2;
 
@@ -348,7 +348,7 @@ mod tests {
         let env = mock_env(&deps.api, TEST_VOTER, &coins(stake_amount, VOTING_TOKEN));
 
         let handle_res = handle(&mut deps, env.clone(), msg.clone()).unwrap();
-        validate_stake_result(stake_amount, Some(1), handle_res, &mut deps);
+        assert_stake_tokens_result(stake_amount, Some(1), handle_res, &mut deps);
 
         let msg = HandleMsg::CastVote {
             poll_id: 1,
@@ -415,13 +415,13 @@ mod tests {
         let env = mock_env(&deps.api, TEST_VOTER, &coins(voter1_stake, VOTING_TOKEN));
 
         let handle_res = handle(&mut deps, env, msg.clone()).unwrap();
-        validate_stake_result(voter1_stake, Some(1), handle_res, &mut deps);
+        assert_stake_tokens_result(voter1_stake, Some(1), handle_res, &mut deps);
 
         let msg = HandleMsg::StakeVotingTokens {};
         let env = mock_env(&deps.api, TEST_VOTER_2, &coins(voter2_stake, VOTING_TOKEN));
 
         let handle_res = handle(&mut deps, env, msg.clone()).unwrap();
-        validate_stake_result(voter1_stake + voter2_stake, Some(1), handle_res, &mut deps);
+        assert_stake_tokens_result(voter1_stake + voter2_stake, Some(1), handle_res, &mut deps);
 
         let env = mock_env(&deps.api, TEST_VOTER_2, &[]);
         let msg = HandleMsg::CastVote {
@@ -430,7 +430,7 @@ mod tests {
             weight: Uint128::from(voter2_stake),
         };
         let handle_res = handle(&mut deps, env, msg).unwrap();
-        validate_cast_vote_result(TEST_VOTER_2, voter2_stake, 1, handle_res);
+        assert_cast_vote_success(TEST_VOTER_2, voter2_stake, 1, handle_res);
 
         let msg = HandleMsg::EndPoll { poll_id: 1 };
 
@@ -463,7 +463,7 @@ mod tests {
         );
 
         let handle_res = handle(&mut deps, env.clone(), msg.clone()).unwrap();
-        validate_create_poll_result(
+        assert_create_poll_result(
             1,
             quorum_percentage,
             DEFAULT_END_HEIGHT,
@@ -494,7 +494,7 @@ mod tests {
         let msg = create_poll_msg(0, "test".to_string(), None, None);
 
         let handle_res = handle(&mut deps, env, msg.clone()).unwrap();
-        validate_create_poll_result(
+        assert_create_poll_result(
             1,
             0,
             DEFAULT_END_HEIGHT,
@@ -534,7 +534,7 @@ mod tests {
         let msg = create_poll_msg(quorum_percentage, "test".to_string(), None, None);
 
         let handle_res = handle(&mut deps, env, msg.clone()).unwrap();
-        validate_create_poll_result(
+        assert_create_poll_result(
             1,
             quorum_percentage,
             DEFAULT_END_HEIGHT,
@@ -548,7 +548,7 @@ mod tests {
         let env = mock_env(&deps.api, TEST_VOTER, &coins(11, VOTING_TOKEN));
 
         let handle_res = handle(&mut deps, env, msg.clone()).unwrap();
-        validate_stake_result(11, Some(1), handle_res, &mut deps);
+        assert_stake_tokens_result(11, Some(1), handle_res, &mut deps);
 
         let env = mock_env(&deps.api, TEST_VOTER, &coins(11, VOTING_TOKEN));
         let weight = 10u128;
@@ -559,7 +559,7 @@ mod tests {
         };
 
         let handle_res = handle(&mut deps, env, msg.clone()).unwrap();
-        validate_cast_vote_result(TEST_VOTER, weight, 1, handle_res);
+        assert_cast_vote_success(TEST_VOTER, weight, 1, handle_res);
     }
 
     #[test]
@@ -571,7 +571,7 @@ mod tests {
         let env = mock_env(&deps.api, TEST_VOTER, &coins(11, VOTING_TOKEN));
 
         let handle_res = handle(&mut deps, env, msg.clone()).unwrap();
-        validate_stake_result(11, None, handle_res, &mut deps);
+        assert_stake_tokens_result(11, None, handle_res, &mut deps);
 
         let state = config_read(&mut deps.storage).load().unwrap();
         assert_eq!(
@@ -647,7 +647,7 @@ mod tests {
         let env = mock_env(&deps.api, TEST_VOTER, &coins(10, VOTING_TOKEN));
 
         let handle_res = handle(&mut deps, env, msg.clone()).unwrap();
-        validate_stake_result(10, None, handle_res, &mut deps);
+        assert_stake_tokens_result(10, None, handle_res, &mut deps);
 
         let env = mock_env(&deps.api, TEST_VOTER, &[]);
         let msg = HandleMsg::WithdrawVotingTokens {
@@ -676,7 +676,7 @@ mod tests {
         let msg = create_poll_msg(quorum_percentage, "test".to_string(), None, None);
         let handle_res = handle(&mut deps, env.clone(), msg.clone()).unwrap();
 
-        validate_create_poll_result(
+        assert_create_poll_result(
             1,
             quorum_percentage,
             DEFAULT_END_HEIGHT,
@@ -690,7 +690,7 @@ mod tests {
         let msg = HandleMsg::StakeVotingTokens {};
 
         let handle_res = handle(&mut deps, env.clone(), msg.clone()).unwrap();
-        validate_stake_result(11, Some(1), handle_res, &mut deps);
+        assert_stake_tokens_result(11, Some(1), handle_res, &mut deps);
 
         let weight = 1u128;
         let msg = HandleMsg::CastVote {
@@ -699,7 +699,7 @@ mod tests {
             weight: Uint128::from(weight),
         };
         let handle_res = handle(&mut deps, env.clone(), msg).unwrap();
-        validate_cast_vote_result(TEST_VOTER, weight, 1, handle_res);
+        assert_cast_vote_success(TEST_VOTER, weight, 1, handle_res);
 
         let msg = HandleMsg::CastVote {
             poll_id: 1,
@@ -744,7 +744,7 @@ mod tests {
         let env = mock_env(&deps.api, TEST_VOTER, &coins(11, VOTING_TOKEN));
 
         let handle_res = handle(&mut deps, env, msg.clone()).unwrap();
-        validate_stake_result(11, None, handle_res, &mut deps);
+        assert_stake_tokens_result(11, None, handle_res, &mut deps);
     }
 
     #[test]
@@ -794,7 +794,7 @@ mod tests {
     }
 
     // helper to confirm the expected create_poll response
-    fn validate_create_poll_result(
+    fn assert_create_poll_result(
         poll_id: u64,
         quorum: u8,
         end_height: u64,
@@ -831,8 +831,7 @@ mod tests {
         );
     }
 
-    // helper to confirm the expected stake response
-    fn validate_stake_result(
+    fn assert_stake_tokens_result(
         staked_tokens: u128,
         poll_count: Option<u64>,
         handle_res: HandleResponse,
@@ -855,8 +854,7 @@ mod tests {
         );
     }
 
-    // helper to confirm the expected cast_vote response
-    fn validate_cast_vote_result(
+    fn assert_cast_vote_success(
         voter: &str,
         weight: u128,
         poll_id: u64,
