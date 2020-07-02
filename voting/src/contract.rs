@@ -7,6 +7,8 @@ use crate::msg::{HandleMsg, InitMsg, QueryMsg, PollResponse, TokenStakeResponse,
 use crate::state::{config, config_read, bank, bank_read, poll, poll_read,
                    State, Poll, PollStatus, Voter};
 
+pub const VOTING_TOKEN: &'static str = "voting_token";
+pub const DEFAULT_END_HEIGHT_BLOCKS: &'static u64 = &100800u64;
 const MIN_STAKE_AMOUNT: u128 = 1;
 const MIN_DESC_LENGTH: usize = 3;
 const MAX_DESC_LENGTH: usize = 64;
@@ -144,11 +146,19 @@ fn validate_quorum_percentage(quorum_percentage: Option<u8>) -> StdResult<()> {
     }
 }
 
+/// validate_end_height returns an error if the poll ends in the past
+fn validate_end_height(end_height: Option<u64>, env: Env) -> StdResult<()> {
+    if end_height.is_some() && env.block.height >= end_height.unwrap() {
+        Err(StdError::generic_err("Poll cannot end in the past"))
+    } else {
+        Ok(())
+    }
+}
+
 /// create a new poll
 pub fn create_poll<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    // state: State,
     quorum_percentage: Option<u8>,
     description: String,
     start_height: Option<u64>,
@@ -156,6 +166,7 @@ pub fn create_poll<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<HandleResponse> {
 
     validate_quorum_percentage(quorum_percentage)?;
+    validate_end_height(end_height, env.clone())?;
     validate_description(&description)?;
 
     let mut state = config(&mut deps.storage).load()?;
@@ -171,7 +182,7 @@ pub fn create_poll<S: Storage, A: Api, Q: Querier>(
         no_votes: Uint128::zero(),
         voters: vec![],
         voter_info: vec![],
-        end_height,
+        end_height: end_height.unwrap_or(env.block.height + DEFAULT_END_HEIGHT_BLOCKS),
         start_height,
         description,
     };
@@ -190,7 +201,7 @@ pub fn create_poll<S: Storage, A: Api, Q: Querier>(
             ),
             log("poll_id", &poll_id.to_string()),
             log("quorum_percentage", quorum_percentage.unwrap_or(0)),
-            log("end_height", end_height.unwrap_or(0)),
+            log("end_height", new_poll.end_height),
             log("start_height", start_height.unwrap_or(0)),
         ],
         data: Some(to_binary(&CreatePollResponse { poll_id })?),
@@ -201,8 +212,6 @@ pub fn create_poll<S: Storage, A: Api, Q: Querier>(
 /*
  * Ends a poll. Only the creator of a given poll can end that poll.
  */
-const VOTING_TOKEN: &'static str = "voting_token";
-
 pub fn end_poll<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
@@ -228,7 +237,7 @@ pub fn end_poll<S: Storage, A: Api, Q: Querier>(
         return Err(StdError::generic_err("Voting period has not started."));
     }
 
-    if a_poll.end_height.is_some() && a_poll.end_height.unwrap() > env.block.height {
+    if a_poll.end_height > env.block.height {
         return Err(StdError::generic_err("Voting period has not expired."));
     }
 
@@ -318,8 +327,6 @@ fn locked_amount<S: Storage, A: Api, Q: Querier>(voter: &CanonicalAddr, deps: &m
     largest
 }
 
-
-//todo optimize has_voted, maybe use another bucket
 fn has_voted(voter: &CanonicalAddr, a_poll: &Poll) -> bool {
 
     if a_poll.voters.iter().any(|i| i == voter) {
@@ -441,7 +448,7 @@ fn query_poll<S: Storage, A: Api, Q: Querier>(
         creator: deps.api.human_address(&poll.creator).unwrap(),
         status: poll.status,
         quorum_percentage: poll.quorum_percentage,
-        end_height: poll.end_height,
+        end_height: Some(poll.end_height),
         start_height: poll.start_height,
         description: poll.description,
     };

@@ -48,7 +48,7 @@ pub struct Poll {
     pub no_votes: Uint128,
     pub voters: Vec<CanonicalAddr>,
     pub voter_info: Vec<Voter>,
-    pub end_height: Option<u64>,
+    pub end_height: u64,
     pub start_height: Option<u64>,
     pub description: String,
 }
