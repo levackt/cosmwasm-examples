@@ -16,7 +16,6 @@ pub const DEFAULT_END_HEIGHT_BLOCKS: &'static u64 = &100800u64;
 const MIN_STAKE_AMOUNT: u128 = 1;
 const MIN_DESC_LENGTH: usize = 3;
 const MAX_DESC_LENGTH: usize = 64;
-pub const VOTING_TOKEN: &'static str = "voting_token";
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
