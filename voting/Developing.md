@@ -98,7 +98,7 @@ as this will be included in the body of a transaction. We also want to have a
 reproducible build process, so third parties can verify that the uploaded Wasm
 code did indeed come from the claimed rust code.
 
-To solve both these issues, we have produced `cosmwasm-opt`, a docker image to
+To solve both these issues, we have produced `rust-optimizer`, a docker image to
 produce an extremely small build output in a consistent manner. The suggest way
 to run it is this:
 
@@ -106,7 +106,7 @@ to run it is this:
 docker run --rm -v "$(pwd)":/code \
   --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
   --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-  confio/cosmwasm-opt:0.7.3
+  cosmwasm/rust-optimizer:0.8.0
 ```
 
 We must mount the contract code to `/code`. You can use a absolute path instead
