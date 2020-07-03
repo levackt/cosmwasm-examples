@@ -1,7 +1,7 @@
+use crate::state::PollStatus;
 use cosmwasm_std::{HumanAddr, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use crate::state::{PollStatus};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InitMsg {
@@ -16,10 +16,9 @@ pub enum HandleMsg {
         encrypted_vote: String,
         weight: Uint128,
     },
-    StakeVotingTokens {
-    },
+    StakeVotingTokens {},
     WithdrawVotingTokens {
-        amount: Option<Uint128>
+        amount: Option<Uint128>,
     },
     CreatePoll {
         quorum_percentage: Option<u8>,
@@ -36,18 +35,14 @@ pub enum HandleMsg {
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     Config {},
-    TokenStake {
-        address: HumanAddr,
-    },
-    Poll {
-        poll_id: u64
-    }
+    TokenStake { address: HumanAddr },
+    Poll { poll_id: u64 },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema)]
 pub struct PollResponse {
     pub creator: HumanAddr,
-    pub status : PollStatus,
+    pub status: PollStatus,
     pub quorum_percentage: Option<u8>,
     pub end_height: Option<u64>,
     pub start_height: Option<u64>,
@@ -61,7 +56,7 @@ pub struct CreatePollResponse {
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema)]
 pub struct PollCountResponse {
-    pub poll_count: u64
+    pub poll_count: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema)]
