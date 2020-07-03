@@ -2,11 +2,11 @@
 mod tests {
     use crate::contract::{handle, init, query, VOTING_TOKEN};
     use crate::msg::{HandleMsg, InitMsg, PollResponse, QueryMsg};
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage};
     use crate::state::{config_read, State};
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage};
     use cosmwasm_std::{
-        coins, from_binary, log, Api, BankMsg, Coin, CosmosMsg, Env, Extern, HandleResponse, HumanAddr,
-        StdError, Uint128,
+        coins, from_binary, log, Api, BankMsg, Coin, CosmosMsg, Env, Extern, HandleResponse,
+        HumanAddr, StdError, Uint128,
     };
 
     const DEFAULT_END_HEIGHT: u64 = 100800u64;

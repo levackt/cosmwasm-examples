@@ -2,11 +2,14 @@ use crate::coin_helpers::assert_sent_sufficient_coin;
 use crate::msg::{
     CreatePollResponse, HandleMsg, InitMsg, PollResponse, QueryMsg, TokenStakeResponse,
 };
-use crate::state::{bank, bank_read, config, config_read, poll, poll_read, Poll, PollStatus, State,
-                   Voter};
-use cosmwasm_std::{coin, log, to_binary, Api, BankMsg, Binary, CanonicalAddr, Coin, CosmosMsg, Env,
-                   Extern, HandleResponse, HandleResult, HumanAddr, InitResponse, InitResult,
-                   Querier, StdError, StdResult, Storage, Uint128};
+use crate::state::{
+    bank, bank_read, config, config_read, poll, poll_read, Poll, PollStatus, State, Voter,
+};
+use cosmwasm_std::{
+    coin, log, to_binary, Api, BankMsg, Binary, CanonicalAddr, Coin, CosmosMsg, Env, Extern,
+    HandleResponse, HandleResult, HumanAddr, InitResponse, InitResult, Querier, StdError,
+    StdResult, Storage, Uint128,
+};
 
 pub const VOTING_TOKEN: &'static str = "voting_token";
 pub const DEFAULT_END_HEIGHT_BLOCKS: &'static u64 = &100800u64;
@@ -107,7 +110,7 @@ pub fn withdraw_voting_tokens<S: Storage, A: Api, Q: Querier>(
             Some(amount) => Some(amount.u128()),
             None => Some(token_manager.token_balance.u128()),
         }
-            .unwrap();
+        .unwrap();
         if largest_staked + withdraw_amount > token_manager.token_balance.u128() {
             Err(StdError::generic_err(
                 "User is trying to withdraw too many tokens.",
@@ -465,7 +468,7 @@ fn query_poll<S: Storage, A: Api, Q: Querier>(
         Some(poll) => Some(poll),
         None => return Err(StdError::generic_err("Poll does not exist")),
     }
-        .unwrap();
+    .unwrap();
 
     let resp = PollResponse {
         creator: deps.api.human_address(&poll.creator).unwrap(),
