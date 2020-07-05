@@ -6,10 +6,13 @@ use crate::state::{
     bank, bank_read, config, config_read, poll, poll_read, Poll, PollStatus, State, Voter,
 };
 use cosmwasm_std::{
-    coin, log, to_binary, Api, BankMsg, Binary, CanonicalAddr, Coin, CosmosMsg, Env, Extern,
-    HandleResponse, HandleResult, HumanAddr, InitResponse, InitResult, Querier, StdError,
-    StdResult, Storage, Uint128,
+    generic_err, coin, log, to_binary,
+    Api, BankMsg, Binary, CanonicalAddr, Coin, CosmosMsg, Env, Extern,
+    HandleResponse, HandleResult, HumanAddr, InitResponse, InitResult, Querier,
+    StdResult, Storage, Uint128, MigrateResponse
 };
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 
 pub const VOTING_TOKEN: &'static str = "voting_token";
 pub const DEFAULT_END_HEIGHT_BLOCKS: &'static u64 = &100800u64;
@@ -112,7 +115,7 @@ pub fn withdraw_voting_tokens<S: Storage, A: Api, Q: Querier>(
         }
         .unwrap();
         if largest_staked + withdraw_amount > token_manager.token_balance.u128() {
-            Err(StdError::generic_err(
+            Err(generic_err(
                 "User is trying to withdraw too many tokens.",
             ))
         } else {
@@ -135,16 +138,16 @@ pub fn withdraw_voting_tokens<S: Storage, A: Api, Q: Querier>(
             )
         }
     } else {
-        Err(StdError::generic_err("Nothing staked"))
+        Err(generic_err("Nothing staked"))
     }
 }
 
 /// validate_description returns an error if the description is invalid
 fn validate_description(description: &str) -> StdResult<()> {
     if description.len() < MIN_DESC_LENGTH {
-        Err(StdError::generic_err("Description too short"))
+        Err(generic_err("Description too short"))
     } else if description.len() > MAX_DESC_LENGTH {
-        Err(StdError::generic_err("Description too long"))
+        Err(generic_err("Description too long"))
     } else {
         Ok(())
     }
@@ -154,7 +157,7 @@ fn validate_description(description: &str) -> StdResult<()> {
 /// (we require 0-100)
 fn validate_quorum_percentage(quorum_percentage: Option<u8>) -> StdResult<()> {
     if quorum_percentage.is_some() && quorum_percentage.unwrap() > 100 {
-        Err(StdError::generic_err("quorum_percentage must be 0 to 100"))
+        Err(generic_err("quorum_percentage must be 0 to 100"))
     } else {
         Ok(())
     }
@@ -163,7 +166,7 @@ fn validate_quorum_percentage(quorum_percentage: Option<u8>) -> StdResult<()> {
 /// validate_end_height returns an error if the poll ends in the past
 fn validate_end_height(end_height: Option<u64>, env: Env) -> StdResult<()> {
     if end_height.is_some() && env.block.height >= end_height.unwrap() {
-        Err(StdError::generic_err("Poll cannot end in the past"))
+        Err(generic_err("Poll cannot end in the past"))
     } else {
         Ok(())
     }
@@ -232,27 +235,27 @@ pub fn end_poll<S: Storage, A: Api, Q: Querier>(
 ) -> HandleResult {
     let key = &poll_id.to_string();
     if (poll(&mut deps.storage).may_load(key.as_bytes())?).is_none() {
-        return Err(StdError::generic_err("Poll does not exist"));
+        return Err(generic_err("Poll does not exist"));
     }
 
     let mut a_poll = poll(&mut deps.storage).load(key.as_bytes()).unwrap();
 
     if a_poll.creator != env.message.sender {
-        return Err(StdError::generic_err(
+        return Err(generic_err(
             "User is not the creator of the poll.",
         ));
     }
 
     if a_poll.status != PollStatus::InProgress {
-        return Err(StdError::generic_err("Poll is not in progress"));
+        return Err(generic_err("Poll is not in progress"));
     }
 
     if a_poll.start_height.is_some() && a_poll.start_height.unwrap() > env.block.height {
-        return Err(StdError::generic_err("Voting period has not started."));
+        return Err(generic_err("Voting period has not started."));
     }
 
     if a_poll.end_height > env.block.height {
-        return Err(StdError::generic_err("Voting period has not expired."));
+        return Err(generic_err("Voting period has not expired."));
     }
 
     let mut no = 0u128;
@@ -370,24 +373,24 @@ pub fn cast_vote<S: Storage, A: Api, Q: Querier>(
 ) -> HandleResult {
     let poll_key = &poll_id.to_string();
     if (poll(&mut deps.storage).may_load(poll_key.as_bytes())?).is_none() {
-        return Err(StdError::generic_err("Poll does not exist"));
+        return Err(generic_err("Poll does not exist"));
     }
 
     let mut a_poll = poll(&mut deps.storage).load(poll_key.as_bytes()).unwrap();
 
     if a_poll.status != PollStatus::InProgress {
-        return Err(StdError::generic_err("Poll is not in progress"));
+        return Err(generic_err("Poll is not in progress"));
     }
 
     if has_voted(&env.message.sender, &a_poll) {
-        return Err(StdError::generic_err("User has already voted."));
+        return Err(generic_err("User has already voted."));
     }
 
     let key = &env.message.sender.as_slice();
     let mut token_manager = bank_read(&deps.storage).may_load(key)?.unwrap_or_default();
 
     if &token_manager.token_balance < &weight {
-        return Err(StdError::generic_err(
+        return Err(generic_err(
             "User does not have enough staked tokens.",
         ));
     }
@@ -466,7 +469,7 @@ fn query_poll<S: Storage, A: Api, Q: Querier>(
 
     let poll = match poll_read(&deps.storage).may_load(key.as_bytes())? {
         Some(poll) => Some(poll),
-        None => return Err(StdError::generic_err("Poll does not exist")),
+        None => return Err(generic_err("Poll does not exist")),
     }
     .unwrap();
 
@@ -496,4 +499,21 @@ fn token_balance<S: Storage, A: Api, Q: Querier>(
     };
 
     to_binary(&resp)
+}
+
+/////////////////////////////// Migrate ///////////////////////////////
+// Isn't supported by the Secret Network, but we must declare this to
+// comply with CosmWasm 0.9 API
+///////////////////////////////////////////////////////////////////////
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum MigrateMsg {}
+
+pub fn migrate<S: Storage, A: Api, Q: Querier>(
+    _deps: &mut Extern<S, A, Q>,
+    _env: Env,
+    _msg: MigrateMsg,
+) -> StdResult<MigrateResponse> {
+    Ok(MigrateResponse::default())
 }
