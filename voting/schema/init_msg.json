@@ -3,15 +3,10 @@
   "title": "InitMsg",
   "type": "object",
   "required": [
-    "token"
+    "denom"
   ],
   "properties": {
-    "token": {
-      "$ref": "#/definitions/HumanAddr"
-    }
-  },
-  "definitions": {
-    "HumanAddr": {
+    "denom": {
       "type": "string"
     }
   }

@@ -7,6 +7,7 @@ workflows:
       - escrow
       - nameservice
       - mask
+      - voting
 
 jobs:
   erc20:
@@ -229,7 +230,7 @@ jobs:
             command: rustc --version; cargo --version; rustup --version
         - restore_cache:
             keys:
-                - cargocache-erc20-rust:1.43.1-{{ checksum "Cargo.lock" }}
+                - cargocache-voting-rust:1.43.1-{{ checksum "Cargo.lock" }}
         - run:
             name: Add wasm32 target
             command: rustup target add wasm32-unknown-unknown
