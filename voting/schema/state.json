@@ -3,12 +3,15 @@
   "title": "State",
   "type": "object",
   "required": [
+    "denom",
     "owner",
     "poll_count",
-    "staked_tokens",
-    "token"
+    "staked_tokens"
   ],
   "properties": {
+    "denom": {
+      "type": "string"
+    },
     "owner": {
       "$ref": "#/definitions/CanonicalAddr"
     },
@@ -19,9 +22,6 @@
     },
     "staked_tokens": {
       "$ref": "#/definitions/Uint128"
-    },
-    "token": {
-      "$ref": "#/definitions/CanonicalAddr"
     }
   },
   "definitions": {
