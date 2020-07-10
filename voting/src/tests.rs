@@ -718,6 +718,8 @@ mod tests {
     #[test]
     fn fails_cast_vote_without_poll() {
         let mut deps = mock_dependencies(20, &[]);
+        mock_init(&mut deps);
+
         let msg = HandleMsg::CastVote {
             poll_id: 0,
             encrypted_vote: "yes".to_string(),

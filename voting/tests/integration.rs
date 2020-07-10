@@ -245,8 +245,8 @@ fn happy_days_end_poll() {
     const POLL_END_HEIGHT: u64 = 1000;
     const POLL_ID: u64 = 1;
     let stake_amount = 1000;
+    let mut deps = mock_instance(WASM, &coins(stake_amount, VOTING_TOKEN));
 
-    let mut deps = mock_instance(WASM, &[]);
     let msg = init_msg();
     let mut creator_env = mock_env_height(
         &deps.api,
@@ -347,7 +347,7 @@ fn end_poll_zero_quorum() {
 #[test]
 fn end_poll_quorum_rejected() {
     let stake_amount = 100;
-    let mut deps = mock_instance(WASM, &[]);
+    let mut deps = mock_instance(WASM, &coins(stake_amount, VOTING_TOKEN));
     let msg = init_msg();
     let mut env = mock_env(&deps.api, TEST_CREATOR, &coins(stake_amount, VOTING_TOKEN));
     let init_res: InitResponse = init(&mut deps, env.clone(), msg).unwrap();
@@ -415,8 +415,8 @@ fn end_poll_quorum_rejected() {
 fn end_poll_nay_rejected() {
     let voter1_stake = 100;
     let voter2_stake = 1000;
-
-    let mut deps = mock_instance(WASM, &[]);
+    let stake_amount = 100;
+    let mut deps = mock_instance(WASM, &coins(stake_amount, VOTING_TOKEN));
     let msg = init_msg();
     let mut creator_env = mock_env(&deps.api, TEST_CREATOR, &[]);
     let init_res: InitResponse = init(&mut deps, creator_env.clone(), msg).unwrap();

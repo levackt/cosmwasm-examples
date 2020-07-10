@@ -231,11 +231,7 @@ pub fn end_poll<S: Storage, A: Api, Q: Querier>(
     poll_id: u64,
 ) -> HandleResult {
     let key = &poll_id.to_string();
-    if (poll(&mut deps.storage).may_load(key.as_bytes())?).is_none() {
-        return Err(StdError::generic_err("Poll does not exist"));
-    }
-
-    let mut a_poll = poll(&mut deps.storage).load(key.as_bytes()).unwrap();
+    let mut a_poll = poll(&mut deps.storage).load(key.as_bytes())?;
 
     if a_poll.creator != env.message.sender {
         return Err(StdError::generic_err(
@@ -283,8 +279,11 @@ pub fn end_poll<S: Storage, A: Api, Q: Querier>(
             .amount
             .u128();
 
-        let quorum = ((tallied_weight / staked_weight) * 100) as u8;
+        if staked_weight == 0 {
+            return Err(StdError::generic_err("Nothing staked"));
+        }
 
+        let quorum = ((tallied_weight / staked_weight) * 100) as u8;
         if a_poll.quorum_percentage.is_some() && quorum < a_poll.quorum_percentage.unwrap() {
             // Quorum: More than quorum_percentage of the total staked tokens at the end of the voting
             // period need to have participated in the vote.
@@ -369,11 +368,12 @@ pub fn cast_vote<S: Storage, A: Api, Q: Querier>(
     weight: Uint128,
 ) -> HandleResult {
     let poll_key = &poll_id.to_string();
-    if (poll(&mut deps.storage).may_load(poll_key.as_bytes())?).is_none() {
+    let state = config_read(&mut deps.storage).load()?;
+    if poll_id == 0 || state.poll_count > poll_id {
         return Err(StdError::generic_err("Poll does not exist"));
     }
 
-    let mut a_poll = poll(&mut deps.storage).load(poll_key.as_bytes()).unwrap();
+    let mut a_poll = poll(&mut deps.storage).load(poll_key.as_bytes())?;
 
     if a_poll.status != PollStatus::InProgress {
         return Err(StdError::generic_err("Poll is not in progress"));
