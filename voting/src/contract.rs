@@ -14,8 +14,8 @@ use cosmwasm_std::{
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-pub const VOTING_TOKEN: &'static str = "voting_token";
-pub const DEFAULT_END_HEIGHT_BLOCKS: &'static u64 = &100800u64;
+pub const VOTING_TOKEN: &str = "voting_token";
+pub const DEFAULT_END_HEIGHT_BLOCKS: &u64 = &100_800_u64;
 const MIN_STAKE_AMOUNT: u128 = 1;
 const MIN_DESC_LENGTH: usize = 3;
 const MAX_DESC_LENGTH: usize = 64;
@@ -47,9 +47,9 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
         HandleMsg::WithdrawVotingTokens { amount } => withdraw_voting_tokens(deps, env, amount),
         HandleMsg::CastVote {
             poll_id,
-            encrypted_vote,
+            vote,
             weight,
-        } => cast_vote(deps, env, poll_id, encrypted_vote, weight),
+        } => cast_vote(deps, env, poll_id, vote, weight),
         HandleMsg::EndPoll { poll_id } => end_poll(deps, env, poll_id),
         HandleMsg::CreatePoll {
             quorum_percentage,
@@ -88,7 +88,7 @@ pub fn stake_voting_tokens<S: Storage, A: Api, Q: Querier>(
         .find(|coin| coin.denom.eq(&state.denom))
         .unwrap();
 
-    token_manager.token_balance = token_manager.token_balance + sent_funds.amount;
+    token_manager.token_balance += sent_funds.amount;
 
     let staked_tokens = state.staked_tokens.u128() + sent_funds.amount.u128();
     state.staked_tokens = Uint128::from(staked_tokens);
@@ -113,7 +113,7 @@ pub fn withdraw_voting_tokens<S: Storage, A: Api, Q: Querier>(
             Some(amount) => Some(amount.u128()),
             None => Some(token_manager.token_balance.u128()),
         }
-        .unwrap();
+            .unwrap();
         if largest_staked + withdraw_amount > token_manager.token_balance.u128() {
             Err(generic_err(
                 "User is trying to withdraw too many tokens.",
@@ -234,11 +234,7 @@ pub fn end_poll<S: Storage, A: Api, Q: Querier>(
     poll_id: u64,
 ) -> HandleResult {
     let key = &poll_id.to_string();
-    if (poll(&mut deps.storage).may_load(key.as_bytes())?).is_none() {
-        return Err(generic_err("Poll does not exist"));
-    }
-
-    let mut a_poll = poll(&mut deps.storage).load(key.as_bytes()).unwrap();
+    let mut a_poll = poll(&mut deps.storage).load(key.as_bytes())?;
 
     if a_poll.creator != env.message.sender {
         return Err(generic_err(
@@ -270,7 +266,6 @@ pub fn end_poll<S: Storage, A: Api, Q: Querier>(
     }
     let tallied_weight = yes + no;
 
-    let poll_status = PollStatus::Rejected;
     let mut rejected_reason = "";
     let mut passed = false;
 
@@ -285,6 +280,10 @@ pub fn end_poll<S: Storage, A: Api, Q: Querier>(
             .unwrap()
             .amount
             .u128();
+
+        if staked_weight == 0 {
+            return Err(generic_err("Nothing staked."));
+        }
 
         let quorum = ((tallied_weight / staked_weight) * 100) as u8;
 
@@ -303,7 +302,9 @@ pub fn end_poll<S: Storage, A: Api, Q: Querier>(
     } else {
         rejected_reason = "Quorum not reached";
     }
-    a_poll.status = poll_status;
+    if !passed {
+        a_poll.status = PollStatus::Rejected
+    }
     poll(&mut deps.storage).save(key.as_bytes(), &a_poll)?;
 
     for voter in &a_poll.voters {
@@ -347,21 +348,16 @@ fn locked_amount<S: Storage, A: Api, Q: Querier>(
 ) -> u128 {
     let voter_key = &voter.as_slice();
     let token_manager = bank_read(&deps.storage).load(voter_key).unwrap();
-    let largest = token_manager
+    token_manager
         .locked_tokens
         .iter()
         .map(|(_, v)| v.u128())
         .max()
-        .unwrap_or_default();
-
-    largest
+        .unwrap_or_default()
 }
 
 fn has_voted(voter: &CanonicalAddr, a_poll: &Poll) -> bool {
-    if a_poll.voters.iter().any(|i| i == voter) {
-        return true;
-    };
-    return false;
+    a_poll.voters.iter().any(|i| i == voter)
 }
 
 pub fn cast_vote<S: Storage, A: Api, Q: Querier>(
@@ -372,11 +368,12 @@ pub fn cast_vote<S: Storage, A: Api, Q: Querier>(
     weight: Uint128,
 ) -> HandleResult {
     let poll_key = &poll_id.to_string();
-    if (poll(&mut deps.storage).may_load(poll_key.as_bytes())?).is_none() {
+    let state = config_read(&deps.storage).load()?;
+    if poll_id == 0 || state.poll_count > poll_id {
         return Err(generic_err("Poll does not exist"));
     }
 
-    let mut a_poll = poll(&mut deps.storage).load(poll_key.as_bytes()).unwrap();
+    let mut a_poll = poll(&mut deps.storage).load(poll_key.as_bytes())?;
 
     if a_poll.status != PollStatus::InProgress {
         return Err(generic_err("Poll is not in progress"));
@@ -389,10 +386,8 @@ pub fn cast_vote<S: Storage, A: Api, Q: Querier>(
     let key = &env.message.sender.as_slice();
     let mut token_manager = bank_read(&deps.storage).may_load(key)?.unwrap_or_default();
 
-    if &token_manager.token_balance < &weight {
-        return Err(generic_err(
-            "User does not have enough staked tokens.",
-        ));
+    if token_manager.token_balance < weight {
+        return Err(generic_err("User does not have enough staked tokens."));
     }
     token_manager.participated_polls.push(poll_id);
     token_manager.locked_tokens.push((poll_id, weight));
@@ -471,7 +466,7 @@ fn query_poll<S: Storage, A: Api, Q: Querier>(
         Some(poll) => Some(poll),
         None => return Err(generic_err("Poll does not exist")),
     }
-    .unwrap();
+        .unwrap();
 
     let resp = PollResponse {
         creator: deps.api.human_address(&poll.creator).unwrap(),

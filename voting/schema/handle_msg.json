@@ -11,12 +11,12 @@
         "cast_vote": {
           "type": "object",
           "required": [
-            "encrypted_vote",
+            "vote",
             "poll_id",
             "weight"
           ],
           "properties": {
-            "encrypted_vote": {
+            "vote": {
               "type": "string"
             },
             "poll_id": {

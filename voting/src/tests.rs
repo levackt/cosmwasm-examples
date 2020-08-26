@@ -253,7 +253,7 @@ mod tests {
 
         let msg = HandleMsg::CastVote {
             poll_id: 1,
-            encrypted_vote: "yes".to_string(),
+            vote: "yes".to_string(),
             weight: Uint128::from(stake_amount),
         };
         let handle_res = handle(&mut deps, env.clone(), msg).unwrap();
@@ -352,7 +352,7 @@ mod tests {
 
         let msg = HandleMsg::CastVote {
             poll_id: 1,
-            encrypted_vote: "yes".to_string(),
+            vote: "yes".to_string(),
             weight: Uint128::from(10u128),
         };
         let handle_res = handle(&mut deps, env.clone(), msg).unwrap();
@@ -426,7 +426,7 @@ mod tests {
         let env = mock_env(&deps.api, TEST_VOTER_2, &[]);
         let msg = HandleMsg::CastVote {
             poll_id: 1,
-            encrypted_vote: "no".to_string(),
+            vote: "no".to_string(),
             weight: Uint128::from(voter2_stake),
         };
         let handle_res = handle(&mut deps, env, msg).unwrap();
@@ -507,7 +507,7 @@ mod tests {
         let env = mock_env(&deps.api, TEST_VOTER, &coins(11, VOTING_TOKEN));
         let msg = HandleMsg::CastVote {
             poll_id: 1,
-            encrypted_vote: "yes".to_string(),
+            vote: "yes".to_string(),
             weight: Uint128::from(1u128),
         };
 
@@ -554,7 +554,7 @@ mod tests {
         let weight = 10u128;
         let msg = HandleMsg::CastVote {
             poll_id: 1,
-            encrypted_vote: "yes".to_string(),
+            vote: "yes".to_string(),
             weight: Uint128::from(weight),
         };
 
@@ -695,7 +695,7 @@ mod tests {
         let weight = 1u128;
         let msg = HandleMsg::CastVote {
             poll_id: 1,
-            encrypted_vote: "yes".to_string(),
+            vote: "yes".to_string(),
             weight: Uint128::from(weight),
         };
         let handle_res = handle(&mut deps, env.clone(), msg).unwrap();
@@ -703,7 +703,7 @@ mod tests {
 
         let msg = HandleMsg::CastVote {
             poll_id: 1,
-            encrypted_vote: "yes".to_string(),
+            vote: "yes".to_string(),
             weight: Uint128::from(weight),
         };
         let res = handle(&mut deps, env.clone(), msg);
@@ -720,7 +720,7 @@ mod tests {
         let mut deps = mock_dependencies(20, &[]);
         let msg = HandleMsg::CastVote {
             poll_id: 0,
-            encrypted_vote: "yes".to_string(),
+            vote: "yes".to_string(),
             weight: Uint128::from(1u128),
         };
         let env = mock_env(&deps.api, TEST_VOTER, &coins(11, VOTING_TOKEN));
