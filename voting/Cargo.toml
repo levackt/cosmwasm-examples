@@ -38,12 +38,13 @@ cranelift = ["cosmwasm-vm/default-cranelift"]
 singlepass = ["cosmwasm-vm/default-singlepass"]
 
 [dependencies]
-cosmwasm-std = { git = "https://github.com/enigmampc/SecretNetwork", tag = "v0.8.0" }
-cosmwasm-storage = { git = "https://github.com/enigmampc/SecretNetwork", tag = "v0.8.0" }
+cosmwasm-schema = { git = "https://github.com/enigmampc/SecretNetwork", tag = "v1.0.0" }
+cosmwasm-std = { git = "https://github.com/enigmampc/SecretNetwork", tag = "v1.0.0" }
+cosmwasm-storage = { git = "https://github.com/enigmampc/SecretNetwork", tag = "v1.0.0" }
 schemars = "0.7"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 hex = "0.4"
 
 [dev-dependencies]
 cosmwasm-vm = { version = "0.9.1", default-features = false }
-cosmwasm-schema = "0.9.1"
+cosmwasm-schema = { git = "https://github.com/enigmampc/SecretNetwork", tag = "v1.0.0" }
